@@ -1,204 +1,490 @@
-import streamlit as st
-import streamlit.components.v1 as components
-
-st.set_page_config(
-    page_title="Coconut Hunter: Advanced 3D Arcade", 
-    page_icon="🥥", 
-    layout="centered"
-)
-
-# Custom Global CSS Layout Blocks
-st.markdown("""<style>
-    .cab { 
-        background: #060913; 
-        padding: 10px; 
-        border-radius: 16px; 
-        border: 2px solid #1e1b4b; 
-        text-align: center; 
-        max-width: 400px;
-        margin: auto;
-    }
-    .bn { 
-        background: #0f172a; 
-        padding: 12px; 
-        border-radius: 10px; 
-        color: #e2e8f0; 
-        font-family: monospace; 
-        font-size: 12px;
-        text-align: left; 
-        margin-bottom: 10px; 
-        border: 1px solid #334155;
-        max-width: 380px;
-        margin-left: auto;
-        margin-right: auto;
-    }
-</style>""", unsafe_allow_html=True)
-
-st.markdown('<div class="bn"><b>🥥 COCONUT HUNTER: MULTI-ENVIRONMENT MATRICES</b><br>Stages dynamically shift atmospheres! Cyber-City, Crimson Sunset, and Volcanic Reef themes load automatically relative to your active island milestone.</div>', unsafe_allow_html=True)
-
-game_html = """
-<!DOCTYPE html><html><head>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<title>Coconut Hunter: Maze Arcade</title>
 <style>
-    body { background:#030712; margin:0; padding:4px; display:flex; flex-direction:column; align-items:center; font-family:monospace; user-select:none; -webkit-user-select:none; }
-    #arenaWrapper { position: relative; width: 360px; height: 360px; }
-    canvas { border:3px solid #10b981; background:#020617; border-radius:12px; width:360px; height:360px; box-shadow: 0 16px 40px rgba(0,0,0,0.85); touch-action: none; cursor: crosshair; }
-    #ui { color:#fff; font-size:14px; font-weight:bold; width:360px; display:flex; justify-content:space-between; margin:6px 0; letter-spacing:0.5px; }
-    #ticketVault { color: #10b981; font-size:13px; font-weight:bold; width:360px; text-align:left; margin-bottom:4px; }
-    .msg-overlay { position: absolute; inset: 0; background: rgba(2, 6, 23, 0.94); border-radius: 12px; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: #fff; text-align: center; padding: 15px; }
-    .msg-title { font-size: 26px; font-weight: bold; margin-bottom: 8px; font-family: sans-serif; letter-spacing: 1px; }
-    .msg-btn { margin-top: 15px; padding: 10px 24px; font-size: 14px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; text-transform: uppercase; font-family: monospace; }
-    .overlay-clear { color: #10b981; text-shadow: 0 0 10px rgba(16,185,129,0.4); }
-    .overlay-fail { color: #ef4444; text-shadow: 0 0 10px rgba(239,68,68,0.4); }
-    .overlay-win { color: #f59e0b; text-shadow: 0 0 12px rgba(245,158,11,0.5); }
-    .overlay-warn { color: #f59e0b; text-shadow: 0 0 10px rgba(245,158,11,0.4); }
-    .ad-container-slot { width: 360px; height: 50px; background: #0f172a; border: 1px dashed #1e293b; border-radius: 6px; margin-top: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #475569; font-size: 10px; }
-</style></head>
+  html,body { background:#030712; margin:0; padding:0; }
+  body { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'Courier New',monospace; user-select:none; -webkit-user-select:none; padding:14px 0 30px; }
+  .cab { background:#060913; padding:14px; border-radius:18px; border:2px solid #1e1b4b; text-align:center; max-width:400px; margin:auto; box-shadow:0 20px 60px rgba(0,0,0,0.6); }
+  .bn { background:#0f172a; padding:12px; border-radius:10px; color:#e2e8f0; font-size:12px; text-align:left; margin-bottom:12px; border:1px solid #334155; }
+  .bn b { color:#facc15; }
+  #ticketVault { color:#10b981; font-size:13px; font-weight:bold; text-align:left; margin-bottom:4px; }
+  #ui { color:#fff; font-size:14px; font-weight:bold; display:flex; justify-content:space-between; margin:6px 0; letter-spacing:0.5px; }
+  #arenaWrapper { position:relative; width:360px; height:360px; margin:auto; }
+  canvas { border:3px solid #10b981; background:#020617; border-radius:12px; width:360px; height:360px; box-shadow:0 16px 40px rgba(0,0,0,0.85); touch-action:none; cursor:crosshair; display:block; }
+  .msg-overlay { position:absolute; inset:0; background:rgba(2,6,23,0.94); border-radius:12px; display:none; flex-direction:column; align-items:center; justify-content:center; z-index:100; color:#fff; text-align:center; padding:15px; }
+  .msg-title { font-size:24px; font-weight:bold; margin-bottom:8px; font-family:sans-serif; letter-spacing:1px; }
+  .msg-btn { margin-top:15px; padding:10px 24px; font-size:14px; font-weight:bold; border-radius:6px; border:none; cursor:pointer; text-transform:uppercase; font-family:monospace; }
+  .overlay-clear { color:#10b981; text-shadow:0 0 10px rgba(16,185,129,0.4); }
+  .overlay-fail { color:#ef4444; text-shadow:0 0 10px rgba(239,68,68,0.4); }
+  .overlay-win { color:#f59e0b; text-shadow:0 0 12px rgba(245,158,11,0.5); }
+  .overlay-warn { color:#f59e0b; text-shadow:0 0 10px rgba(245,158,11,0.4); }
+  .ad-slot { width:360px; height:50px; background:#0f172a; border:1px dashed #1e293b; border-radius:6px; margin-top:15px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#475569; font-size:10px; }
+  #hint { color:#64748b; font-size:11px; margin-top:8px; }
+</style>
+</head>
 <body>
-    <div id="ticketVault">🎟️ ECO VAULT TICKETS: <span id="tix">0</span></div>
-    <div id="ui"><div id="stg">STAGE 1</div><div>🥇 SCORE: <span id="sc">0</span></div><div>❤️ LIVES: <span id="lv">3</span></div></div>
-    <div id="arenaWrapper">
-        <canvas id="cv" width="360" height="360"></canvas>
-        <div id="clearScreen" class="msg-overlay">
-            <div class="msg-title overlay-clear">STAGE CLEARED! 🌴</div>
-            <div style="color:#94a3b8;font-size:12px;">Island routes secured. Prepare for next checkpoint.</div>
-            <button class="msg-btn" style="background:#10b981;color:#000;" onclick="confirmAdvance()">NEXT ISLAND ➡️</button>
-        </div>
-        <div id="caughtScreen" class="msg-overlay">
-            <div class="msg-title overlay-warn">INTERCEPTED! 💥</div>
-            <div style="color:#94a3b8;font-size:12px;">Rival hunter stole your yield. Resetting position.</div>
-            <button class="msg-btn" style="background:#f59e0b;color:#000;" onclick="confirmRespawn()">REDEPLOY HUNTER 🥥</button>
-        </div>
-        <div id="failScreen" class="msg-overlay">
-            <div class="msg-title overlay-fail">GAME OVER 💀</div>
-            <div id="finalScoreInfo" style="color:#94a3b8;font-size:12px;margin-bottom:5px;">Your final harvest has been logged.</div>
-            <button class="msg-btn" style="background:#ef4444;color:#fff;" onclick="confirmRestart()">RETRY HARVEST 🔄</button>
-        </div>
-        <div id="victoryScreen" class="msg-overlay">
-            <div class="msg-title overlay-win">GRAND CHAMPION! 👑</div>
-            <div style="color:#fff;font-size:13px;font-weight:bold;line-height:1.4;">YOU HARVESTED ALL 10 ISLANDS!<br>You dominate the global leaderboard!</div>
-            <button class="msg-btn" style="background:#f59e0b;color:#000;" onclick="confirmRestart()">RESTART CAMPAIGN 🎮</button>
-        </div>
+<div class="cab">
+  <div class="bn"><b>🥥 COCONUT HUNTER: MAZE PROTOCOL</b><br>Real corridors, real walls, a ghost den in the center, and side tunnels that wrap around. Grab a power pellet to turn the hunters blue and eat them back.</div>
+  <div id="ticketVault">🎟️ ECO VAULT TICKETS: <span id="tix">0</span></div>
+  <div id="ui"><div id="stg">LEVEL 1</div><div>🥇 SCORE: <span id="sc">0</span></div><div>❤️ LIVES: <span id="lv">3</span></div></div>
+  <div id="arenaWrapper">
+    <canvas id="cv" width="360" height="360"></canvas>
+    <div id="clearScreen" class="msg-overlay">
+      <div class="msg-title overlay-clear">LEVEL CLEARED! 🌴</div>
+      <div style="color:#94a3b8;font-size:12px;">Maze secured. Hunters regroup and speed up next round.</div>
+      <button class="msg-btn" style="background:#10b981;color:#000;" onclick="confirmAdvance()">NEXT LEVEL ➡️</button>
     </div>
-    <div class="ad-container-slot">
-        <div style="font-weight:bold;color:#475569;">ADVERTISEMENT REVENUE STREAM</div>
-        <div style="font-size:8px;color:#334155;">Google AdSense Mobile H5 SDK Container Slot</div>
+    <div id="caughtScreen" class="msg-overlay">
+      <div class="msg-title overlay-warn">INTERCEPTED! 💥</div>
+      <div style="color:#94a3b8;font-size:12px;">A rival hunter caught you. Resetting position.</div>
+      <button class="msg-btn" style="background:#f59e0b;color:#000;" onclick="confirmRespawn()">REDEPLOY HUNTER 🥥</button>
     </div>
+    <div id="failScreen" class="msg-overlay">
+      <div class="msg-title overlay-fail">GAME OVER 💀</div>
+      <div id="finalScoreInfo" style="color:#94a3b8;font-size:12px;margin-bottom:5px;">Your final harvest has been logged.</div>
+      <button class="msg-btn" style="background:#ef4444;color:#fff;" onclick="confirmRestart()">RETRY HARVEST 🔄</button>
+    </div>
+    <div id="victoryScreen" class="msg-overlay">
+      <div class="msg-title overlay-win">GRAND CHAMPION! 👑</div>
+      <div style="color:#fff;font-size:13px;font-weight:bold;line-height:1.4;">YOU CLEARED EVERY MAZE LEVEL!<br>You dominate the global leaderboard!</div>
+      <button class="msg-btn" style="background:#f59e0b;color:#000;" onclick="confirmRestart()">RESTART CAMPAIGN 🎮</button>
+    </div>
+  </div>
+  <div id="hint">Swipe / drag on the maze, or use arrow keys, to steer.</div>
+  <div class="ad-slot">
+    <div style="font-weight:bold;color:#475569;">ADVERTISEMENT REVENUE STREAM</div>
+    <div style="font-size:8px;color:#334155;">Google AdSense Mobile H5 SDK Container Slot</div>
+  </div>
+</div>
+
 <script>
-    const canvas=document.getElementById("cv"), ctx=canvas.getContext("2d"), scEl=document.getElementById("sc"), lvEl=document.getElementById("lv"), stgEl=document.getElementById("stg"), tixEl=document.getElementById("tix");
-    const clearScreen=document.getElementById("clearScreen"), failScreen=document.getElementById("failScreen"), victoryScreen=document.getElementById("victoryScreen"), caughtScreen=document.getElementById("caughtScreen"), finalScoreInfo=document.getElementById("finalScoreInfo");
-    let score=0, lives=3, stage=1, dots=[], p={x:180,y:260,dx:0,dy:0,r:13,a:0.2,s:0.0015};
-    let arcadeTickets = parseInt(localStorage.getItem("arcade_tix_vault") || "0");
+(function(){
+"use strict";
+
+// ---------- Grid / maze setup ----------
+const COLS = 15, ROWS = 15, CELL = 24;
+const canvas = document.getElementById("cv"), ctx = canvas.getContext("2d");
+const scEl = document.getElementById("sc"), lvEl = document.getElementById("lv"), stgEl = document.getElementById("stg"), tixEl = document.getElementById("tix");
+const clearScreen = document.getElementById("clearScreen"), failScreen = document.getElementById("failScreen"),
+      victoryScreen = document.getElementById("victoryScreen"), caughtScreen = document.getElementById("caughtScreen"),
+      finalScoreInfo = document.getElementById("finalScoreInfo");
+
+const MAX_LEVEL = 7;
+const HOUSE_R = 7, HOUSE_C = 7; // center of a 15x15 grid
+const TUNNEL_R = 7;
+const PLAYER_START = { r: 11, c: 7 };
+const POWER_CELLS = [[1,1],[1,13],[13,1],[13,13]];
+
+let grid = [];        // grid[r][c] = '#' wall, '.' dot, 'o' power pellet, ' ' empty path
+let dotsRemaining = 0;
+
+function buildMaze(){
+  grid = [];
+  for (let r = 0; r < ROWS; r++){
+    const row = [];
+    for (let c = 0; c < COLS; c++){
+      let wall = (r === 0 || r === ROWS-1 || c === 0 || c === COLS-1);
+      if (!wall && r % 2 === 0 && c % 2 === 0) wall = true;
+      row.push(wall ? "#" : ".");
+    }
+    grid.push(row);
+  }
+  // tunnel openings on the middle row
+  grid[TUNNEL_R][0] = " ";
+  grid[TUNNEL_R][COLS-1] = " ";
+  // ghost house: plus-shape naturally framed by the lattice pillars
+  [[HOUSE_R-1,HOUSE_C],[HOUSE_R,HOUSE_C-1],[HOUSE_R,HOUSE_C],[HOUSE_R,HOUSE_C+1],[HOUSE_R+1,HOUSE_C]]
+    .forEach(([r,c]) => { grid[r][c] = " "; });
+  // player start, no dot sitting under the player at spawn
+  grid[PLAYER_START.r][PLAYER_START.c] = " ";
+  // power pellets
+  POWER_CELLS.forEach(([r,c]) => { grid[r][c] = "o"; });
+}
+
+function countDots(){
+  let n = 0;
+  for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++)
+    if (grid[r][c] === "." || grid[r][c] === "o") n++;
+  return n;
+}
+
+function isWall(r, c){
+  if (r < 0 || r >= ROWS) return true;
+  if (c < 0) c = COLS - 1;      // tunnel wrap
+  if (c >= COLS) c = 0;
+  return grid[r][c] === "#";
+}
+
+function cellCenter(r, c){ return { x: c*CELL + CELL/2, y: r*CELL + CELL/2 }; }
+
+// ---------- Game state ----------
+let score = 0, lives = 3, level = 1, gameRunning = false, lastTime = 0;
+let frightenedTimer = 0, frightenedTotal = 0;
+let arcadeTickets = 0;
+try { arcadeTickets = parseInt(localStorage.getItem("arcade_tix_vault") || "0", 10); } catch(e){ arcadeTickets = 0; }
+tixEl.innerText = arcadeTickets;
+
+const DIRS = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0}, none:{x:0,y:0} };
+
+function makePlayer(){
+  const c = cellCenter(PLAYER_START.r, PLAYER_START.c);
+  return { col: PLAYER_START.c, row: PLAYER_START.r, px: c.x, py: c.y, dir: DIRS.none, nextDir: DIRS.none, mouth: 0.2, mouthDir: 1 };
+}
+
+const GHOST_COLORS = ["#ef4444", "#f472b6", "#22d3ee", "#f59e0b"];
+function makeGhosts(n){
+  const c = cellCenter(HOUSE_R, HOUSE_C);
+  const list = [];
+  for (let i = 0; i < n; i++){
+    list.push({
+      col: HOUSE_C, row: HOUSE_R, px: c.x, py: c.y,
+      dir: DIRS.up, nextDir: DIRS.up,
+      color: GHOST_COLORS[i % GHOST_COLORS.length],
+      mode: "house", releaseAt: i * 1800, bob: Math.random()*Math.PI*2
+    });
+  }
+  return list;
+}
+
+let player = makePlayer();
+let ghostCount = 2;
+let ghosts = makeGhosts(ghostCount);
+let houseTimer = 0;
+
+function levelSpeeds(lvl){
+  return {
+    player: 0.095,
+    ghost: 0.062 + lvl * 0.006,
+    frightened: 0.045,
+    eaten: 0.16,
+    frightenedDuration: Math.max(2500, 7000 - lvl*550)
+  };
+}
+let speeds = levelSpeeds(level);
+
+function startLevel(lvl, keepScore){
+  level = lvl;
+  buildMaze();
+  dotsRemaining = countDots();
+  ghostCount = Math.min(4, 1 + Math.ceil(lvl/2));
+  ghosts = makeGhosts(ghostCount);
+  houseTimer = 0;
+  player = makePlayer();
+  speeds = levelSpeeds(lvl);
+  frightenedTimer = 0; frightenedTotal = 0;
+  stgEl.innerText = "LEVEL " + lvl;
+  if (!keepScore){ /* score persists across levels by design */ }
+}
+
+// ---------- Audio ----------
+let audioCtx = null;
+function setupAudio(){ if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function sound(type){
+  setupAudio(); if (!audioCtx) return;
+  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  const t = audioCtx.currentTime;
+  if (type === "waka"){ osc.type="triangle"; osc.frequency.setValueAtTime(420,t); osc.frequency.linearRampToValueAtTime(700,t+0.06); gain.gain.setValueAtTime(0.12,t); osc.start(); osc.stop(t+0.06); }
+  else if (type === "power"){ osc.type="square"; osc.frequency.setValueAtTime(300,t); osc.frequency.linearRampToValueAtTime(150,t+0.25); gain.gain.setValueAtTime(0.15,t); osc.start(); osc.stop(t+0.25); }
+  else if (type === "eatghost"){ osc.type="square"; osc.frequency.setValueAtTime(200,t); osc.frequency.linearRampToValueAtTime(900,t+0.15); gain.gain.setValueAtTime(0.2,t); osc.start(); osc.stop(t+0.15); }
+  else if (type === "lose"){ osc.type="sawtooth"; osc.frequency.setValueAtTime(350,t); osc.frequency.exponentialRampToValueAtTime(60,t+0.35); gain.gain.setValueAtTime(0.25,t); osc.start(); osc.stop(t+0.35); }
+  else if (type === "boom"){ osc.type="sawtooth"; osc.frequency.setValueAtTime(90,t); osc.frequency.exponentialRampToValueAtTime(20,t+0.5); gain.gain.setValueAtTime(0.4,t); osc.start(); osc.stop(t+0.5); }
+  else if (type === "level"){ osc.type="sine"; osc.frequency.setValueAtTime(523.25,t); osc.frequency.setValueAtTime(659.25,t+0.1); osc.frequency.setValueAtTime(783.99,t+0.2); gain.gain.setValueAtTime(0.2,t); osc.start(); osc.stop(t+0.35); }
+}
+
+// ---------- Input ----------
+let dragStart = null;
+function setPlayerDir(dx, dy){
+  if (Math.abs(dx) > Math.abs(dy)) player.nextDir = dx > 0 ? DIRS.right : DIRS.left;
+  else if (dy !== 0) player.nextDir = dy > 0 ? DIRS.down : DIRS.up;
+}
+canvas.addEventListener("pointerdown", (e) => { dragStart = { x: e.clientX, y: e.clientY }; setupAudio(); });
+canvas.addEventListener("pointerup", (e) => {
+  if (!dragStart || !gameRunning) return;
+  const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
+  if (Math.hypot(dx, dy) < 12){
+    // tap: steer relative to the player's current position
+    const rect = canvas.getBoundingClientRect();
+    const cx = rect.left + player.px, cy = rect.top + player.py;
+    setPlayerDir(e.clientX - cx, e.clientY - cy);
+  } else {
+    setPlayerDir(dx, dy);
+  }
+  dragStart = null;
+});
+window.addEventListener("keydown", (e) => {
+  if (!gameRunning) return;
+  if (e.key === "ArrowUp" || e.key === "w") player.nextDir = DIRS.up;
+  else if (e.key === "ArrowDown" || e.key === "s") player.nextDir = DIRS.down;
+  else if (e.key === "ArrowLeft" || e.key === "a") player.nextDir = DIRS.left;
+  else if (e.key === "ArrowRight" || e.key === "d") player.nextDir = DIRS.right;
+});
+
+// ---------- Overlays / flow control ----------
+window.confirmAdvance = function(){
+  clearScreen.style.display = "none";
+  gameRunning = true; lastTime = 0;
+  if (level >= MAX_LEVEL){ victoryScreen.style.display = "flex"; gameRunning = false; return; }
+  startLevel(level + 1, true);
+  requestAnimationFrame(loop);
+};
+window.confirmRestart = function(){
+  failScreen.style.display = "none"; victoryScreen.style.display = "none";
+  score = 0; scEl.innerText = 0; lives = 3; lvEl.innerText = 3;
+  gameRunning = true; lastTime = 0;
+  startLevel(1, false);
+  requestAnimationFrame(loop);
+};
+window.confirmRespawn = function(){
+  caughtScreen.style.display = "none";
+  gameRunning = true; lastTime = 0;
+  player = makePlayer();
+  ghosts.forEach(g => { g.mode = "house"; const c = cellCenter(HOUSE_R, HOUSE_C); g.col=HOUSE_C; g.row=HOUSE_R; g.px=c.x; g.py=c.y; });
+  houseTimer = 0;
+  requestAnimationFrame(loop);
+};
+
+// ---------- Movement helpers ----------
+function canMove(col, row, dir){
+  if (dir.x === 0 && dir.y === 0) return false;
+  return !isWall(row + dir.y, col + dir.x);
+}
+function wrapCol(c){ if (c < 0) return COLS - 1; if (c >= COLS) return 0; return c; }
+
+function advanceEntity(e, speed, dt){
+  const center = cellCenter(e.row, e.col);
+  const atCenter = Math.abs(e.px - center.x) < speed*dt + 0.5 && Math.abs(e.py - center.y) < speed*dt + 0.5;
+  if (atCenter){
+    e.px = center.x; e.py = center.y;
+    if (canMove(e.col, e.row, e.nextDir)) e.dir = e.nextDir;
+    if (!canMove(e.col, e.row, e.dir)) e.dir = DIRS.none;
+  }
+  e.px += e.dir.x * speed * dt;
+  e.py += e.dir.y * speed * dt;
+  // tunnel wrap in pixel space
+  if (e.px < -CELL*0.5) e.px += COLS*CELL;
+  if (e.px > COLS*CELL - CELL*0.5) e.px -= COLS*CELL;
+  e.col = wrapCol(Math.round((e.px - CELL/2) / CELL));
+  e.row = Math.round((e.py - CELL/2) / CELL);
+}
+
+function chooseGhostDir(g, target, avoid){
+  const opts = ["up","down","left","right"].map(k => DIRS[k]).filter(d => canMove(g.col, g.row, d));
+  if (opts.length === 0) return DIRS.none;
+  // don't reverse unless it's the only option
+  const reverse = { x: -g.dir.x, y: -g.dir.y };
+  let filtered = opts.filter(d => !(d.x === reverse.x && d.y === reverse.y));
+  if (filtered.length === 0) filtered = opts;
+  let best = filtered[0], bestScore = -Infinity;
+  filtered.forEach(d => {
+    const nx = g.col + d.x, ny = g.row + d.y;
+    const dist = Math.hypot(nx - target.c, ny - target.r);
+    const score = avoid ? dist : -dist;
+    const jitter = Math.random() * 0.35;
+    if (score + jitter > bestScore){ bestScore = score + jitter; best = d; }
+  });
+  return best;
+}
+
+function updateGhost(g, dt){
+  if (g.mode === "house"){
+    g.bob += dt * 0.006;
+    g.py = cellCenter(HOUSE_R, HOUSE_C).y + Math.sin(g.bob) * 3;
+    if (houseTimer >= g.releaseAt){
+      g.mode = "chase";
+      g.col = HOUSE_C; g.row = HOUSE_R;
+      const c = cellCenter(HOUSE_R, HOUSE_C); g.px = c.x; g.py = c.y;
+      g.dir = DIRS.up; g.nextDir = DIRS.up;
+    }
+    return;
+  }
+  let speed, target, avoid = false;
+  if (g.mode === "eaten"){
+    speed = speeds.eaten; target = { r: HOUSE_R, c: HOUSE_C };
+  } else if (g.mode === "frightened"){
+    speed = speeds.frightened; target = { r: player.row, c: player.col }; avoid = true;
+  } else {
+    speed = speeds.ghost; target = { r: player.row, c: player.col };
+  }
+  const center = cellCenter(g.row, g.col);
+  const atCenter = Math.abs(g.px - center.x) < speed*dt + 0.5 && Math.abs(g.py - center.y) < speed*dt + 0.5;
+  if (atCenter) g.nextDir = chooseGhostDir(g, target, avoid);
+  advanceEntity(g, speed, dt);
+  if (g.mode === "eaten" && g.col === HOUSE_C && g.row === HOUSE_R){
+    g.mode = "chase"; g.dir = DIRS.up; g.nextDir = DIRS.up;
+  }
+}
+
+// ---------- Drawing ----------
+function drawMaze(){
+  ctx.fillStyle = "#020617"; ctx.fillRect(0, 0, COLS*CELL, ROWS*CELL);
+  const wallColor = ["#1e40af","#7c3aed","#0891b2","#b45309","#15803d","#be185d","#0369a1"][(level-1) % 7];
+  for (let r = 0; r < ROWS; r++){
+    for (let c = 0; c < COLS; c++){
+      if (grid[r][c] === "#"){
+        ctx.fillStyle = "#050b1f";
+        ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
+        ctx.strokeStyle = wallColor;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(c*CELL+1.5, r*CELL+1.5, CELL-3, CELL-3);
+      }
+    }
+  }
+  // outer border glow
+  ctx.strokeStyle = wallColor; ctx.lineWidth = 3;
+  ctx.strokeRect(1.5, 1.5, COLS*CELL-3, ROWS*CELL-3);
+
+  for (let r = 0; r < ROWS; r++){
+    for (let c = 0; c < COLS; c++){
+      const cell = grid[r][c];
+      if (cell === "."){
+        ctx.beginPath(); ctx.fillStyle = "#fbbf24";
+        ctx.arc(c*CELL+CELL/2, r*CELL+CELL/2, 2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+      } else if (cell === "o"){
+        const pulse = 4 + Math.sin(performance.now()*0.006)*1.5;
+        ctx.beginPath(); ctx.fillStyle = "#fde047";
+        ctx.arc(c*CELL+CELL/2, r*CELL+CELL/2, pulse, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+      }
+    }
+  }
+}
+
+function drawPlayer(){
+  player.mouth += player.mouthDir * 0.012;
+  if (player.mouth > 0.42 || player.mouth < 0.04) player.mouthDir *= -1;
+  const d = player.dir;
+  const rot = d.x>0?0:(d.x<0?Math.PI:(d.y>0?Math.PI/2:(d.y<0?Math.PI*1.5:0)));
+  ctx.beginPath();
+  const grad = ctx.createRadialGradient(player.px-4, player.py-4, 2, player.px, player.py, 10);
+  grad.addColorStop(0, "#fff7cc"); grad.addColorStop(0.4, "#fbbf24"); grad.addColorStop(1, "#b45309");
+  ctx.arc(player.px, player.py, 10, rot+player.mouth, rot+Math.PI*2-player.mouth);
+  ctx.lineTo(player.px, player.py); ctx.fillStyle = grad; ctx.fill(); ctx.closePath();
+}
+
+function drawGhost(g){
+  const r = 10;
+  ctx.beginPath();
+  let color = g.color;
+  if (g.mode === "frightened"){
+    const flashing = frightenedTimer < 1500 && Math.floor(frightenedTimer/200)%2===0;
+    color = flashing ? "#e0f2fe" : "#1d4ed8";
+  }
+  if (g.mode === "eaten"){
+    // just eyes
+    ctx.fillStyle = "#e5e7eb";
+    ctx.beginPath(); ctx.arc(g.px-3.5, g.py-2, 2.4, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+    ctx.beginPath(); ctx.arc(g.px+3.5, g.py-2, 2.4, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+    ctx.fillStyle = "#0f172a";
+    ctx.beginPath(); ctx.arc(g.px-3.5, g.py-2, 1.1, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+    ctx.beginPath(); ctx.arc(g.px+3.5, g.py-2, 1.1, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+    return;
+  }
+  const grad = ctx.createRadialGradient(g.px-3, g.py-3, 1, g.px, g.py, r);
+  grad.addColorStop(0, "#ffffff"); grad.addColorStop(0.3, color); grad.addColorStop(1, "#020617");
+  ctx.arc(g.px, g.py, r, Math.PI, 0);
+  const wob = Math.sin(performance.now()*0.01 + g.px*0.2) * 2;
+  ctx.lineTo(g.px+r, g.py+r);
+  ctx.lineTo(g.px+r*0.5, g.py+r-wob);
+  ctx.lineTo(g.px, g.py+r);
+  ctx.lineTo(g.px-r*0.5, g.py+r-wob);
+  ctx.lineTo(g.px-r, g.py+r);
+  ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath(); ctx.arc(g.px-3.5, g.py-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+  ctx.beginPath(); ctx.arc(g.px+3.5, g.py-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+  ctx.fillStyle = "#0f172a";
+  const ex = g.dir.x*1.2, ey = g.dir.y*1.2;
+  ctx.beginPath(); ctx.arc(g.px-3.5+ex, g.py-1+ey, 1.2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+  ctx.beginPath(); ctx.arc(g.px+3.5+ex, g.py-1+ey, 1.2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+}
+
+// ---------- Main loop ----------
+function loop(timestamp){
+  if (!gameRunning) return;
+  if (!lastTime) lastTime = timestamp;
+  let dt = timestamp - lastTime;
+  if (dt > 60) dt = 60;
+  lastTime = timestamp;
+
+  if (frightenedTimer > 0){
+    frightenedTimer -= dt;
+    if (frightenedTimer <= 0){
+      frightenedTimer = 0;
+      ghosts.forEach(g => { if (g.mode === "frightened") g.mode = "chase"; });
+    }
+  }
+
+  drawMaze();
+
+  houseTimer += dt;
+
+  // player movement + eating
+  advanceEntity(player, speeds.player, dt);
+  const cell = grid[player.row] ? grid[player.row][player.col] : undefined;
+  if (cell === "."){
+    grid[player.row][player.col] = " "; dotsRemaining--; score += 10; scEl.innerText = score; sound("waka");
+    arcadeTickets += 1; try { localStorage.setItem("arcade_tix_vault", arcadeTickets.toString()); } catch(e){}
     tixEl.innerText = arcadeTickets;
-    let ghosts = []; let gameRunning = false; const pSpeed = 0.085; let lastTime = 0;
+  } else if (cell === "o"){
+    grid[player.row][player.col] = " "; dotsRemaining--; score += 50; scEl.innerText = score; sound("power");
+    frightenedTimer = speeds.frightenedDuration; frightenedTotal = speeds.frightenedDuration;
+    ghosts.forEach(g => { if (g.mode !== "house" && g.mode !== "eaten") g.mode = "frightened"; });
+  }
 
-    const cfgs={
-        1:{n:"📍 MALE' CITY NET", c:"#00ff66", d:"#78350f", numG:1, sp:0.016, bgMode:"city", gen:()=>{for(let i=40;i<=320;i+=70)for(let j=40;j<=320;j+=70)if(!(i==180&&j==260))dots.push({x:i,y:j,v:1})}},
-        2:{n:"📍 HULHUMALE' PRO", c:"#00ff66", d:"#78350f", numG:1, sp:0.020, bgMode:"city", gen:()=>{for(let i=40;i<=320;i+=40){dots.push({x:i,y:i,v:1});dots.push({x:i,y:360-i,v:1})}}},
-        3:{n:"📍 CROSSROADS SUNSET", c:"#f43f5e", d:"#78350f", numG:2, sp:0.024, bgMode:"sunset", gen:()=>{for(let a=0;a<Math.PI*2;a+=Math.PI/5)dots.push({x:180+Math.cos(a)*110,y:180+Math.sin(a)*110,v:1})}},
-        4:{n:"📍 MAAFUSHI COASTS", c:"#f43f5e", d:"#78350f", numG:2, sp:0.028, bgMode:"sunset", gen:()=>{for(let i=35;i<=325;i+=40)dots.push({x:i,y:180,v:1}),dots.push({x:180,y:i,v:1})}},
-        5:{n:"📍 BANOS SAND BAR", c:"#f43f5e", d:"#78350f", numG:2, sp:0.032, bgMode:"sunset", gen:()=>{for(let i=45;i<=315;i+=45)for(let j=45;j<=315;j+=45)dots.push({x:i,y:j,v:1})}},
-        6:{n:"📍 DHIGURAH REEF", c:"#a855f7", d:"#78350f", numG:3, sp:0.036, bgMode:"reef", gen:()=>{for(let i=35;i<=325;i+=35)dots.push({x:i,y:55,v:1}),dots.push({x:i,y:305,v:1})}},
-        7:{n:"📍 THODDOO FARMS", c:"#a855f7", d:"#78350f", numG:3, sp:0.040, bgMode:"reef", gen:()=>{for(let r=45;r<=135;r+=45)for(let a=0;a<Math.PI*2;a+=Math.PI/4)dots.push({x:180+Math.cos(a)*r,y:180+Math.sin(a)*r,v:1})}},
-        // FIXED: Replaced corrupted semicolon with correct closing bracket pairing syntax
-        8:{n:"📍 GAN BASE REEFS", c:"#a855f7", d:"#78350f", numG:3, sp:0.044, bgMode:"reef", gen:()=>{for(let i=30;i<=330;i+=30){dots.push({x:i,y:180,v:1});dots.push({x:i,y:90,v:1});dots.push({x:i,y:270,v:1})}}},
-        9:{n:"📍 HANIFARU OCEAN WAY", c:"#a855f7", d:"#78350f", numG:3, sp:0.048, bgMode:"reef", gen:()=>{for(let i=45;i<=315;i+=54)for(let j=45;j<=315;j+=54)dots.push({x:i,y:j,v:1})}},
-        10:{n:"👑 ADDU FINALS PRO", c:"#00ff66", d:"#ffffff", numG:4, sp:0.054, bgMode:"city", gen:()=>{for(let i=30;i<=330;i+=42)for(let j=30;j<=330;j+=42)dots.push({x:i,y:j,v:1})}}
-    };
-    function load(n){
-        stage=n; let c=cfgs[n]; stgEl.innerText=c.n; canvas.style.borderColor=c.c; p.x=180; p.y=260; p.dx=0; p.dy=0; dots=[]; c.gen(); ghosts = []; const targetHunterColors = ["#ef4444", "#a855f7", "#00f0ff", "#eab308"];
-        for(let i=0; i<c.numG; i++) { ghosts.push({ x: 70 + (i * 60), y: 60 + (i * 50), r: 13, a: 0.2, s: 0.0015, dx: -1, dy: 0, c: targetHunterColors[i % targetHunterColors.length], sp: c.sp * (1 + (i * 0.12)) }); }
+  ghosts.forEach(g => updateGhost(g, dt));
+
+  drawPlayer();
+  ghosts.forEach(drawGhost);
+
+  // collisions
+  for (const g of ghosts){
+    if (g.mode === "house") continue;
+    if (Math.hypot(player.px - g.px, player.py - g.py) < 13){
+      if (g.mode === "frightened"){
+        g.mode = "eaten"; score += 200; scEl.innerText = score; sound("eatghost");
+      } else if (g.mode === "chase"){
+        lives--; lvEl.innerText = lives;
+        gameRunning = false;
+        if (lives <= 0){ sound("boom"); finalScoreInfo.innerText = "Final Operation Score: " + score; failScreen.style.display = "flex"; }
+        else { sound("lose"); caughtScreen.style.display = "flex"; }
+        return;
+      }
     }
-    let audioCtx = null; function setupAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
-    function sound(type) {
-        setupAudio(); if (!audioCtx) return; let osc = audioCtx.createOscillator(), gain = audioCtx.createGain(); osc.connect(gain); gain.connect(audioCtx.destination);
-        if (type === "waka") { osc.type = "triangle"; osc.frequency.setValueAtTime(420, audioCtx.currentTime); osc.frequency.linearRampToValueAtTime(700, audioCtx.currentTime + 0.06); gain.gain.setValueAtTime(0.12, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.06); }
-        else if (type === "lose") { osc.type = "sawtooth"; osc.frequency.setValueAtTime(350, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(60, audioCtx.currentTime + 0.35); gain.gain.setValueAtTime(0.25, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.35); }
-        else if (type === "boom") { osc.type = "sawtooth"; osc.frequency.setValueAtTime(90, audioCtx.currentTime); osc.frequency.exponentialRampToValueAtTime(20, audioCtx.currentTime + 0.5); gain.gain.setValueAtTime(0.4, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.5); }
-        else if (type === "level") { osc.type = "sine"; osc.frequency.setValueAtTime(523.25, audioCtx.currentTime); osc.frequency.setValueAtTime(659.25, audioCtx.currentTime + 0.1); osc.frequency.setValueAtTime(783.99, audioCtx.currentTime + 0.2); gain.gain.setValueAtTime(0.2, audioCtx.currentTime); osc.start(); osc.stop(audioCtx.currentTime + 0.35); }
-    }
-    function handleScreenInput(clientX, clientY) {
-        if (!gameRunning) return; let rect = canvas.getBoundingClientRect(); let clickX = clientX - rect.left; let clickY = clientY - rect.top; let centerX = rect.width / 2; let centerY = rect.height / 2; let dx = clickX - centerX; let dy = clickY - centerY;
-        if (Math.abs(dx) > Math.abs(dy)) { if (dx > 0) { p.dx = pSpeed; p.dy = 0; } else { p.dx = -pSpeed; p.dy = 0; } }
-        else { if (dy > 0) { p.dx = 0; p.dy = pSpeed; } else { p.dx = 0; p.dy = -pSpeed; } }
-    }
-    canvas.addEventListener("mousedown", (e) => handleScreenInput(e.clientX, e.clientY));
-    canvas.addEventListener("touchstart", (e) => { e.preventDefault(); if(e.touches && e.touches.length > 0) { handleScreenInput(e.touches.clientX, e.touches.clientY); } }, { passive: false });
-    window.confirmAdvance = function() { clearScreen.style.display = "none"; gameRunning = true; lastTime = 0; load(stage + 1); requestAnimationFrame(loop); };
-    window.confirmRestart = function() { failScreen.style.display = "none"; victoryScreen.style.display = "none"; score = 0; scEl.innerText = 0; lives = 3; lvEl.innerText = 3; gameRunning = true; lastTime = 0; load(1); requestAnimationFrame(loop); };
-    window.confirmRespawn = function() { caughtScreen.style.display = "none"; gameRunning = true; lastTime = 0; p.x=180; p.y=260; p.dx=0; p.dy=0; load(stage); requestAnimationFrame(loop); };
+  }
 
-    function drawStageBackground(c) {
-        if (c.bgMode === "city") {
-            ctx.fillStyle = "#02040a"; ctx.fillRect(0, 0, 360, 360); ctx.fillStyle = "#0b0f19";
-            ctx.fillRect(10, 80, 70, 200); ctx.fillRect(90, 40, 80, 240); ctx.fillRect(190, 90, 65, 190); ctx.fillRect(270, 60, 80, 220);
-            ctx.strokeStyle = "rgba(0, 255, 102, 0.04)"; ctx.lineWidth = 1;
-            for(let i=30; i<360; i+=45) { ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, 360); ctx.stroke(); ctx.closePath(); }
-        } else if (c.bgMode === "sunset") {
-            let skyGrad = ctx.createLinearGradient(0, 0, 0, 170); skyGrad.addColorStop(0, "#2e1065"); skyGrad.addColorStop(1, "#f43f5e");
-            ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, 360, 170);
-            let seaGrad = ctx.createLinearGradient(0, 170, 0, 360); seaGrad.addColorStop(0, "#111827"); seaGrad.addColorStop(1, "#4c0519");
-            ctx.fillStyle = seaGrad; ctx.fillRect(0, 170, 360, 190); ctx.fillStyle = "#f59e0b"; ctx.fillRect(0, 169, 360, 2);
-        } else if (c.bgMode === "reef") {
-            let rSky = ctx.createLinearGradient(0, 0, 0, 180); rSky.addColorStop(0, "#090514"); rSky.addColorStop(1, "#1e1b4b");
-            ctx.fillStyle = rSky; ctx.fillRect(0, 0, 360, 180);
-            let rFloor = ctx.createLinearGradient(0, 180, 0, 360); rFloor.addColorStop(0, "#020617"); rFloor.addColorStop(1, "#2e1065");
-            ctx.fillStyle = rFloor; ctx.fillRect(0, 180, 360, 180);
-            ctx.beginPath(); ctx.arc(180, 90, 30, 0, Math.PI*2); ctx.fillStyle = "rgba(168, 85, 247, 0.15)"; ctx.fill(); ctx.closePath();
-        }
-    }
-    function loop(timestamp){
-        if (!gameRunning) return; if (!lastTime) lastTime = timestamp; let dt = timestamp - lastTime; if (dt > 60) dt = 60; lastTime = timestamp;
-        let c=cfgs[stage]; drawStageBackground(c); let active=0;
+  if (dotsRemaining <= 0){
+    gameRunning = false; sound("level");
+    if (level >= MAX_LEVEL) victoryScreen.style.display = "flex";
+    else clearScreen.style.display = "flex";
+    return;
+  }
 
-        dots.forEach(d=>{
-            if(d.v){
-                active++; ctx.beginPath();
-                let dotGrad = ctx.createRadialGradient(d.x-1.5, d.y-1.5, 0.5, d.x, d.y, 6.5);
-                dotGrad.addColorStop(0, "#d97706"); dotGrad.addColorStop(0.5, "#78350f"); dotGrad.addColorStop(1, "#1e0700");
-                ctx.arc(d.x, d.y, 6.5, 0, Math.PI*2); ctx.fillStyle=dotGrad; ctx.fill(); ctx.closePath();
-                ctx.fillStyle = "#120300"; ctx.beginPath(); ctx.arc(d.x, d.y - 2.5, 1, 0, Math.PI*2); ctx.fill(); ctx.closePath();     
-                ctx.beginPath(); ctx.arc(d.x - 2, d.y + 1.5, 1, 0, Math.PI*2); ctx.fill(); ctx.closePath();   
-                ctx.beginPath(); ctx.arc(d.x + 2, d.y + 1.5, 1, 0, Math.PI*2); ctx.fill(); ctx.closePath();   
-                if(Math.hypot(p.x-d.x,p.y-d.y)<p.r+6.5){ d.v=0; score+=10; scEl.innerText=score; sound("waka"); arcadeTickets += 1; localStorage.setItem("arcade_tix_vault", arcadeTickets.toString()); tixEl.innerText = arcadeTickets; }
-            }
-        });
+  requestAnimationFrame(loop);
+}
 
-        if(!active){ gameRunning = false; sound("level"); if(stage < 10){ clearScreen.style.display = "flex"; } else { victoryScreen.style.display = "flex"; } return; }
-        p.x += p.dx * dt; p.y += p.dy * dt; p.x = p.x < p.r ? 360 - p.r : (p.x > 360 - p.r ? p.r : p.x); p.y = p.y < p.r ? 360 - p.r : (p.y > 360 - p.r ? p.r : p.y);
-        p.a += p.s * dt; if(p.a > 0.45 || p.a < 0.05) p.s = -p.s;
+// ---------- Launch button ----------
+const launchBtn = document.createElement("button");
+launchBtn.innerText = "🥥 LAUNCH COCONUT HUNTER";
+Object.assign(launchBtn.style, {
+  position:"absolute", top:"40%", left:"6%", width:"88%", padding:"15px",
+  fontSize:"15px", fontWeight:"bold", background:"#10b981", color:"#000",
+  border:"2px solid #34d399", borderRadius:"8px", zIndex:"999", fontFamily:"monospace", cursor:"pointer"
+});
+document.getElementById("arenaWrapper").appendChild(launchBtn);
+launchBtn.onclick = () => {
+  launchBtn.remove(); setupAudio(); sound("level");
+  gameRunning = true; startLevel(1, false); lastTime = 0;
+  requestAnimationFrame(loop);
+};
 
-        ctx.beginPath(); let pGrad = ctx.createRadialGradient(p.x-4, p.y-4, 2, p.x, p.y, p.r); pGrad.addColorStop(0, "#ffedd5"); pGrad.addColorStop(0.3, "#b45309"); pGrad.addColorStop(0.8, "#78350f"); pGrad.addColorStop(1, "#451a03"); 
-        let rot=p.dx>0?0:(p.dx<0?Math.PI:(p.dy>0?Math.PI/2:(p.dy<0?Math.PI*1.5:0))); ctx.arc(p.x, p.y, p.r, rot+p.a, rot+Math.PI*2-p.a); ctx.lineTo(p.x,p.y); ctx.fillStyle=pGrad; ctx.fill(); ctx.closePath();
+buildMaze(); // draw an initial static preview behind the launch button
+drawMaze();
 
-        let eyeAngle = rot + 0.35; let pEyeX = p.x + Math.cos(eyeAngle) * 5.5; let pEyeY = p.y + Math.sin(eyeAngle) * 5.5;
-        ctx.strokeStyle = "rgba(28, 7, 0, 0.7)"; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(pEyeX - 3.5, pEyeY); ctx.lineTo(pEyeX + 3.5, pEyeY); ctx.stroke(); ctx.closePath();
-        ctx.beginPath(); ctx.arc(pEyeX, pEyeY, 1.4, 0, Math.PI*2); ctx.fillStyle = "#000000"; ctx.fill(); ctx.closePath();
-
-        ghosts.forEach(g => {
-            if(g.x < p.x) { g.x += g.sp * dt; g.dx = 1; } else { g.x -= g.sp * dt; g.dx = -1; } if(g.y < p.y) { g.y += g.sp * dt; g.dy = 1; } else { g.y -= g.sp * dt; g.dy = -1; }
-            g.a += g.s * dt; if(g.a > 0.45 || g.a < 0.05) g.s = -g.s;
-            ctx.beginPath(); let gGrad = ctx.createRadialGradient(g.x-4, g.y-4, 2, g.x, g.y, g.r); gGrad.addColorStop(0, "#ffffff"); gGrad.addColorStop(0.25, g.c); gGrad.addColorStop(0.8, "#090514"); gGrad.addColorStop(1, "#000000");
-            let gRot = g.dx > 0 ? 0 : (g.dx < 0 ? Math.PI : (g.dy > 0 ? Math.PI/2 : 0)); ctx.arc(g.x, g.y, g.r, gRot+g.a, gRot+Math.PI*2-g.a); ctx.lineTo(g.x, g.y); ctx.fillStyle=gGrad; ctx.fill(); ctx.closePath();
-
-            let gEyeAngle = gRot + 0.3; let gEyeX = g.x + Math.cos(gEyeAngle) * 5; let gEyeY = g.y + Math.sin(gEyeAngle) * 5;
-            ctx.strokeStyle = "rgba(0, 0, 0, 0.6)"; ctx.lineWidth = 2.5; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(gEyeX - 3, gEyeY); ctx.lineTo(gEyeX + 3, gEyeY); ctx.stroke(); ctx.closePath();
-            ctx.beginPath(); ctx.arc(gEyeX, gEyeY, 1.4, 0, Math.PI*2); ctx.fillStyle = "#000000"; ctx.fill(); ctx.closePath();
-
-            if(Math.hypot(p.x-g.x, p.y-g.y) < p.r+g.r){
-                lives--; lvEl.innerText=lives;
-                if(lives<=0){ gameRunning = false; sound("boom"); finalScoreInfo.innerText = "Final Operation Score: " + score; failScreen.style.display = "flex"; } 
-                else { gameRunning = false; sound("lose"); caughtScreen.style.display = "flex"; }
-            }
-        });
-        if (gameRunning) requestAnimationFrame(loop);
-    }
-
-    const btn=document.createElement("button"); btn.innerText="🥥 LAUNCH COCONUT HUNTER PRO"; Object.assign(btn.style,{position:"absolute",top:"35%",left:"5%",width:"90%",padding:"15px",fontSize:"15px",fontWeight:"bold",background:"#10b981",color:"#000",border:"2px solid #34d399",borderRadius:"8px",zIndex:"999",fontFamily:"monospace"});
-    document.body.appendChild(btn); btn.onclick=()=>{btn.remove(); setupAudio(); sound("level"); gameRunning=true; load(1); requestAnimationFrame(loop)};
-</script></body></html>
-"""
-
-st.markdown('<div class="cab">', unsafe_allow_html=True)
-components.html(game_html, height=520, scrolling=False)
-st.markdown("</div>", unsafe_allow_html=True)
+})();
+</script>
+</body>
+</html>
