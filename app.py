@@ -4,107 +4,167 @@ import streamlit.components.v1 as components
 st.set_page_config(
     page_title="Coconut Hunter: Maze Arcade",
     page_icon="🥥",
-    layout="centered"
+    layout="wide"
 )
 
-# Custom Global CSS Layout Blocks
+# Strip Streamlit's own chrome/padding so the game can truly fill the screen
 st.markdown("""<style>
-    .cab {
-        background: #060913;
-        padding: 10px;
-        border-radius: 16px;
-        border: 2px solid #1e1b4b;
-        text-align: center;
-        max-width: 400px;
-        margin: auto;
-    }
-    .bn {
-        background: #0f172a;
-        padding: 12px;
-        border-radius: 10px;
-        color: #e2e8f0;
-        font-family: monospace;
-        font-size: 12px;
-        text-align: left;
-        margin-bottom: 10px;
-        border: 1px solid #334155;
-        max-width: 380px;
-        margin-left: auto;
-        margin-right: auto;
-    }
+    #MainMenu {visibility: hidden;}
+    header {visibility: hidden;}
+    footer {visibility: hidden;}
+    .block-container { padding: 0 !important; margin: 0 !important; max-width: 100% !important; }
+    div[data-testid="stAppViewContainer"] { padding: 0 !important; }
+    div[data-testid="stVerticalBlock"] { gap: 0 !important; }
+    iframe { display:block; }
+    body { overflow: hidden !important; }
 </style>""", unsafe_allow_html=True)
-
-st.markdown('<div class="bn"><b>🥥 COCONUT HUNTER: MAZE PROTOCOL</b><br>Real corridors, real walls, a ghost den in the center, and side tunnels that wrap around. Grab a power pellet to turn the hunters blue and eat them back.</div>', unsafe_allow_html=True)
 
 game_html = """
 <!DOCTYPE html><html><head>
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <style>
-    body { background:#030712; margin:0; padding:4px; display:flex; flex-direction:column; align-items:center; font-family:monospace; user-select:none; -webkit-user-select:none; }
-    #arenaWrapper { position: relative; width: 360px; height: 360px; }
-    canvas { border:3px solid #10b981; background:#020617; border-radius:12px; width:360px; height:360px; box-shadow: 0 16px 40px rgba(0,0,0,0.85); touch-action: none; cursor: crosshair; }
-    #ui { color:#fff; font-size:14px; font-weight:bold; width:360px; display:flex; justify-content:space-between; margin:6px 0; letter-spacing:0.5px; }
-    #ticketVault { color: #10b981; font-size:13px; font-weight:bold; width:360px; text-align:left; margin-bottom:4px; }
-    .msg-overlay { position: absolute; inset: 0; background: rgba(2, 6, 23, 0.94); border-radius: 12px; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: #fff; text-align: center; padding: 15px; }
-    .msg-title { font-size: 24px; font-weight: bold; margin-bottom: 8px; font-family: sans-serif; letter-spacing: 1px; }
-    .msg-btn { margin-top: 15px; padding: 10px 24px; font-size: 14px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; text-transform: uppercase; font-family: monospace; }
-    .overlay-clear { color: #10b981; text-shadow: 0 0 10px rgba(16,185,129,0.4); }
-    .overlay-fail { color: #ef4444; text-shadow: 0 0 10px rgba(239,68,68,0.4); }
-    .overlay-win { color: #f59e0b; text-shadow: 0 0 12px rgba(245,158,11,0.5); }
-    .overlay-warn { color: #f59e0b; text-shadow: 0 0 10px rgba(245,158,11,0.4); }
-    .ad-container-slot { width: 360px; height: 50px; background: #0f172a; border: 1px dashed #1e293b; border-radius: 6px; margin-top: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #475569; font-size: 10px; }
-    #hint { color:#64748b; font-size:11px; margin-top:8px; }
+    html, body {
+        height: 100%; margin:0; padding:0; overflow:hidden;
+        font-family: 'Trebuchet MS', monospace;
+        -webkit-user-select:none; user-select:none;
+    }
+    body {
+        width:100vw; height:100dvh;
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        position:relative;
+        background:
+            radial-gradient(circle at 78% 18%, rgba(255,224,140,0.9) 0%, rgba(255,180,90,0.55) 8%, rgba(255,140,60,0) 20%),
+            linear-gradient(180deg, #1c2b52 0%, #3a3f7a 18%, #7a4f6f 38%, #d97b52 55%, #f4b860 65%, #2b6f6a 66%, #123f45 100%);
+    }
+    /* distant island silhouettes */
+    .island { position:absolute; bottom:32%; opacity:0.55; filter:blur(0.3px); pointer-events:none; }
+    .island.i1 { left:2%; width:26vw; height:9vh; background:#0d2f33; border-radius:50% 50% 0 0 / 100% 100% 0 0; }
+    .island.i2 { right:4%; width:34vw; height:12vh; background:#0a2529; border-radius:50% 50% 0 0 / 100% 100% 0 0; opacity:0.7; }
+    .palm { position:absolute; bottom:31%; width:6vw; max-width:60px; min-width:26px; opacity:0.85; pointer-events:none; filter:drop-shadow(0 0 6px rgba(0,0,0,0.4)); }
+    .palm svg { width:100%; height:auto; display:block; }
+    .palm.p1 { left:4%; bottom:30%; transform:scale(1.3); }
+    .palm.p2 { left:12%; bottom:28%; transform:scale(0.85) scaleX(-1); }
+    .palm.p3 { right:6%; bottom:29%; transform:scale(1.1) scaleX(-1); }
+    .palm.p4 { right:16%; bottom:26%; transform:scale(0.7); }
+    /* ocean shimmer */
+    .ocean-shine { position:absolute; left:0; right:0; bottom:0; height:34%;
+        background: repeating-linear-gradient(100deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 40px);
+        pointer-events:none; mix-blend-mode: screen; }
+    .sand-strip { position:absolute; left:0; right:0; bottom:0; height:6%;
+        background: linear-gradient(180deg, #d9b06a 0%, #b98a4a 100%); pointer-events:none; }
+
+    #hud {
+        position:relative; z-index:5; width:min(96vw, 620px);
+        display:flex; flex-direction:column; align-items:center; margin-bottom: 0.4vh;
+    }
+    #ticketVault { color:#ffe9b0; font-size:clamp(11px,2.4vw,14px); font-weight:bold; width:100%; text-align:left;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.6); margin-bottom:2px; }
+    #ui { color:#fff; font-size:clamp(12px,2.6vw,15px); font-weight:bold; width:100%;
+        display:flex; justify-content:space-between; text-shadow: 0 1px 3px rgba(0,0,0,0.7); }
+
+    #arenaWrapper {
+        position:relative; z-index:4;
+        display:flex; align-items:center; justify-content:center;
+        flex:1 1 auto; width:100%; min-height:0;
+    }
+    canvas {
+        border:3px solid #6b4226; border-radius:14px;
+        background:#0e1a12;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.7), inset 0 0 40px rgba(0,0,0,0.5);
+        touch-action:none; cursor:crosshair;
+    }
+    .msg-overlay { position:absolute; inset:0; background:rgba(10,14,10,0.94); border-radius:14px;
+        display:none; flex-direction:column; align-items:center; justify-content:center; z-index:100; color:#fff; text-align:center; padding:15px; }
+    .msg-title { font-size:clamp(18px,4vw,26px); font-weight:bold; margin-bottom:8px; letter-spacing:1px; }
+    .msg-btn { margin-top:15px; padding:10px 24px; font-size:14px; font-weight:bold; border-radius:8px; border:none; cursor:pointer;
+        text-transform:uppercase; font-family:inherit; box-shadow:0 4px 0 rgba(0,0,0,0.35); }
+    .overlay-clear { color:#7be39a; text-shadow:0 0 10px rgba(123,227,154,0.5); }
+    .overlay-fail { color:#ff8578; text-shadow:0 0 10px rgba(255,133,120,0.5); }
+    .overlay-win { color:#ffce6b; text-shadow:0 0 12px rgba(255,206,107,0.5); }
+    .overlay-warn { color:#ffce6b; text-shadow:0 0 10px rgba(255,206,107,0.4); }
+    #hint { color:#f1e4c8; font-size:clamp(9px,2vw,11px); margin:4px 0 2px; text-shadow:0 1px 2px rgba(0,0,0,0.6); z-index:5; }
 </style></head>
 <body>
-    <div id="ticketVault">🎟️ ECO VAULT TICKETS: <span id="tix">0</span></div>
-    <div id="ui"><div id="stg">LEVEL 1</div><div>🥇 SCORE: <span id="sc">0</span></div><div>❤️ LIVES: <span id="lv">3</span></div></div>
+    <div class="island i1"></div>
+    <div class="island i2"></div>
+    <div class="palm p1"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#1e4d2b"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/><path d="M33 38 Q15 10 8 22 Q25 28 33 40Z"/><path d="M33 38 Q52 8 58 20 Q40 26 33 40Z"/><path d="M33 36 Q30 4 22 8 Q28 24 33 38Z"/></g></svg></div>
+    <div class="palm p2"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#194023"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/><path d="M33 38 Q15 10 8 22 Q25 28 33 40Z"/><path d="M33 38 Q52 8 58 20 Q40 26 33 40Z"/></g></svg></div>
+    <div class="palm p3"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#1e4d2b"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/><path d="M33 38 Q15 10 8 22 Q25 28 33 40Z"/><path d="M33 38 Q52 8 58 20 Q40 26 33 40Z"/></g></svg></div>
+    <div class="palm p4"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#194023"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/></g></svg></div>
+    <div class="ocean-shine"></div>
+    <div class="sand-strip"></div>
+
+    <div id="hud">
+        <div id="ticketVault">🎟️ ECO VAULT TICKETS: <span id="tix">0</span></div>
+        <div id="ui"><div id="stg">LEVEL 1</div><div>🥇 SCORE: <span id="sc">0</span></div><div>❤️ LIVES: <span id="lv">3</span></div></div>
+    </div>
+
     <div id="arenaWrapper">
-        <canvas id="cv" width="360" height="360"></canvas>
+        <canvas id="cv"></canvas>
         <div id="clearScreen" class="msg-overlay">
             <div class="msg-title overlay-clear">LEVEL CLEARED! 🌴</div>
-            <div style="color:#94a3b8;font-size:12px;">Maze secured. Hunters regroup and speed up next round.</div>
-            <button class="msg-btn" style="background:#10b981;color:#000;" onclick="confirmAdvance()">NEXT LEVEL ➡️</button>
+            <div style="color:#cbd5c9;font-size:12px;">Maze secured. Hunters regroup and speed up next round.</div>
+            <button class="msg-btn" style="background:#4fae6d;color:#08210f;" onclick="confirmAdvance()">NEXT LEVEL ➡️</button>
         </div>
         <div id="caughtScreen" class="msg-overlay">
             <div class="msg-title overlay-warn">INTERCEPTED! 💥</div>
-            <div style="color:#94a3b8;font-size:12px;">A rival hunter caught you. Resetting position.</div>
-            <button class="msg-btn" style="background:#f59e0b;color:#000;" onclick="confirmRespawn()">REDEPLOY HUNTER 🥥</button>
+            <div style="color:#cbd5c9;font-size:12px;">A rival hunter caught you. Resetting position.</div>
+            <button class="msg-btn" style="background:#e8a13e;color:#2a1600;" onclick="confirmRespawn()">REDEPLOY HUNTER 🥥</button>
         </div>
         <div id="failScreen" class="msg-overlay">
             <div class="msg-title overlay-fail">GAME OVER 💀</div>
-            <div id="finalScoreInfo" style="color:#94a3b8;font-size:12px;margin-bottom:5px;">Your final harvest has been logged.</div>
-            <button class="msg-btn" style="background:#ef4444;color:#fff;" onclick="confirmRestart()">RETRY HARVEST 🔄</button>
+            <div id="finalScoreInfo" style="color:#cbd5c9;font-size:12px;margin-bottom:5px;">Your final harvest has been logged.</div>
+            <button class="msg-btn" style="background:#d9534f;color:#fff;" onclick="confirmRestart()">RETRY HARVEST 🔄</button>
         </div>
         <div id="victoryScreen" class="msg-overlay">
             <div class="msg-title overlay-win">GRAND CHAMPION! 👑</div>
             <div style="color:#fff;font-size:13px;font-weight:bold;line-height:1.4;">YOU CLEARED EVERY MAZE LEVEL!<br>You dominate the global leaderboard!</div>
-            <button class="msg-btn" style="background:#f59e0b;color:#000;" onclick="confirmRestart()">RESTART CAMPAIGN 🎮</button>
+            <button class="msg-btn" style="background:#e8a13e;color:#2a1600;" onclick="confirmRestart()">RESTART CAMPAIGN 🎮</button>
         </div>
     </div>
     <div id="hint">Swipe / drag on the maze, or use arrow keys, to steer.</div>
-    <div class="ad-container-slot">
-        <div style="font-weight:bold;color:#475569;">ADVERTISEMENT REVENUE STREAM</div>
-        <div style="font-size:8px;color:#334155;">Google AdSense Mobile H5 SDK Container Slot</div>
-    </div>
+
 <script>
 (function(){
 "use strict";
 
+// ================= FULL-SCREEN IFRAME TAKEOVER =================
+// Streamlit embeds components.html() content in an iframe with a fixed height
+// set from Python. To get genuine full-screen (PC + mobile) we reach out to
+// that iframe element itself (same-origin) and stretch it to the viewport.
+try {
+  const frame = window.frameElement;
+  if (frame) {
+    frame.style.position = "fixed";
+    frame.style.top = "0";
+    frame.style.left = "0";
+    frame.style.width = "100vw";
+    frame.style.height = "100dvh";
+    frame.style.zIndex = "999999";
+    frame.style.border = "none";
+    if (window.parent && window.parent.document && window.parent.document.body) {
+      window.parent.document.body.style.overflow = "hidden";
+      window.parent.document.documentElement.style.overflow = "hidden";
+    }
+  }
+} catch(e){ /* cross-origin fallback: game still fills its own iframe */ }
+
 // ---------- Grid / maze setup ----------
-const COLS = 15, ROWS = 15, CELL = 24;
+const COLS = 15, ROWS = 15, CELL = 24; // logical drawing units, scaled to fit screen
 const canvas = document.getElementById("cv"), ctx = canvas.getContext("2d");
 const scEl = document.getElementById("sc"), lvEl = document.getElementById("lv"), stgEl = document.getElementById("stg"), tixEl = document.getElementById("tix");
 const clearScreen = document.getElementById("clearScreen"), failScreen = document.getElementById("failScreen"),
       victoryScreen = document.getElementById("victoryScreen"), caughtScreen = document.getElementById("caughtScreen"),
       finalScoreInfo = document.getElementById("finalScoreInfo");
+const arenaWrapper = document.getElementById("arenaWrapper"), hud = document.getElementById("hud");
 
 const MAX_LEVEL = 7;
-const HOUSE_R = 7, HOUSE_C = 7; // center of a 15x15 grid
+const HOUSE_R = 7, HOUSE_C = 7;
 const TUNNEL_R = 7;
 const PLAYER_START = { r: 11, c: 7 };
 const POWER_CELLS = [[1,1],[1,13],[13,1],[13,13]];
 
-let grid = [];        // grid[r][c] = '#' wall, '.' dot, 'o' power pellet, ' ' empty path
+let grid = [];
 let dotsRemaining = 0;
 
 function buildMaze(){
@@ -134,13 +194,11 @@ function countDots(){
 }
 
 function wrapCol(c){ if (c < 0) return COLS - 1; if (c >= COLS) return 0; return c; }
-
 function isWall(r, c){
   if (r < 0 || r >= ROWS) return true;
   c = wrapCol(c);
   return grid[r][c] === "#";
 }
-
 function cellCenter(r, c){ return { x: c*CELL + CELL/2, y: r*CELL + CELL/2 }; }
 
 // ---------- Directions ----------
@@ -152,13 +210,6 @@ function canMove(row, col, dir){
 }
 
 // ---------- Tile-based mover ----------
-// Every moving entity has: row, col (the tile it currently occupies), dir (direction
-// it is actively animating toward), nextDir (queued direction), moveProgress (0..1,
-// how far it has animated from `row,col` toward the next tile in `dir`).
-// Direction changes and wall checks ONLY happen exactly at tile boundaries
-// (moveProgress wrapping past 1, or starting from a dead stop) -- this keeps
-// movement smooth and prevents the col/row from ever disagreeing with what's
-// drawn on screen.
 function tryStep(e, speedCellsPerSec, dt, onArrive){
   e.justArrived = false;
   if (isNoneDir(e.dir)){
@@ -166,7 +217,7 @@ function tryStep(e, speedCellsPerSec, dt, onArrive){
       e.dir = e.nextDir;
       e.moveProgress = 0;
     } else {
-      return; // still blocked, stay put
+      return;
     }
   }
   e.moveProgress += speedCellsPerSec * dt / 1000;
@@ -198,6 +249,25 @@ function entityPixelPos(e){
   return { x, y };
 }
 
+// ---------- Responsive full-screen canvas ----------
+let drawScale = 1;
+function resizeCanvas(){
+  const hudH = hud.offsetHeight;
+  const hintH = document.getElementById("hint").offsetHeight;
+  const availW = window.innerWidth;
+  const availH = (window.visualViewport ? window.visualViewport.height : window.innerHeight) - hudH - hintH - 18;
+  const size = Math.max(220, Math.floor(Math.min(availW * 0.98, availH * 0.98)));
+  canvas.style.width = size + "px";
+  canvas.style.height = size + "px";
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.floor(size * dpr);
+  canvas.height = Math.floor(size * dpr);
+  drawScale = (size * dpr) / (COLS * CELL);
+  ctx.setTransform(drawScale, 0, 0, drawScale, 0, 0);
+}
+window.addEventListener("resize", resizeCanvas);
+if (window.visualViewport) window.visualViewport.addEventListener("resize", resizeCanvas);
+
 // ---------- Game state ----------
 let score = 0, lives = 3, level = 1, gameRunning = false, lastTime = 0;
 let frightenedTimer = 0, frightenedTotal = 0;
@@ -228,7 +298,6 @@ let ghosts = makeGhosts(ghostCount);
 let houseTimer = 0;
 
 function levelSpeeds(lvl){
-  // speeds expressed in grid-cells per second
   return {
     player: 4.0,
     ghost: 2.6 + lvl * 0.25,
@@ -252,20 +321,63 @@ function startLevel(lvl){
   stgEl.innerText = "LEVEL " + lvl;
 }
 
-// ---------- Audio ----------
+// ---------- Audio (re-themed: woody / tropical, not classic arcade bleeps) ----------
 let audioCtx = null;
 function setupAudio(){ if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function noiseBurst(duration, filterFreq, gainVal){
+  const bufferSize = Math.floor(audioCtx.sampleRate * duration);
+  const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < bufferSize; i++) data[i] = (Math.random()*2 - 1) * (1 - i/bufferSize);
+  const src = audioCtx.createBufferSource(); src.buffer = buffer;
+  const filt = audioCtx.createBiquadFilter(); filt.type = "bandpass"; filt.frequency.value = filterFreq; filt.Q.value = 1.1;
+  const gain = audioCtx.createGain(); gain.gain.setValueAtTime(gainVal, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+  src.connect(filt); filt.connect(gain); gain.connect(audioCtx.destination);
+  src.start();
+}
 function sound(type){
   setupAudio(); if (!audioCtx) return;
-  const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
-  osc.connect(gain); gain.connect(audioCtx.destination);
   const t = audioCtx.currentTime;
-  if (type === "waka"){ osc.type="triangle"; osc.frequency.setValueAtTime(420,t); osc.frequency.linearRampToValueAtTime(700,t+0.06); gain.gain.setValueAtTime(0.12,t); osc.start(); osc.stop(t+0.06); }
-  else if (type === "power"){ osc.type="square"; osc.frequency.setValueAtTime(300,t); osc.frequency.linearRampToValueAtTime(150,t+0.25); gain.gain.setValueAtTime(0.15,t); osc.start(); osc.stop(t+0.25); }
-  else if (type === "eatghost"){ osc.type="square"; osc.frequency.setValueAtTime(200,t); osc.frequency.linearRampToValueAtTime(900,t+0.15); gain.gain.setValueAtTime(0.2,t); osc.start(); osc.stop(t+0.15); }
-  else if (type === "lose"){ osc.type="sawtooth"; osc.frequency.setValueAtTime(350,t); osc.frequency.exponentialRampToValueAtTime(60,t+0.35); gain.gain.setValueAtTime(0.25,t); osc.start(); osc.stop(t+0.35); }
-  else if (type === "boom"){ osc.type="sawtooth"; osc.frequency.setValueAtTime(90,t); osc.frequency.exponentialRampToValueAtTime(20,t+0.5); gain.gain.setValueAtTime(0.4,t); osc.start(); osc.stop(t+0.5); }
-  else if (type === "level"){ osc.type="sine"; osc.frequency.setValueAtTime(523.25,t); osc.frequency.setValueAtTime(659.25,t+0.1); osc.frequency.setValueAtTime(783.99,t+0.2); gain.gain.setValueAtTime(0.2,t); osc.start(); osc.stop(t+0.35); }
+  if (type === "waka"){
+    noiseBurst(0.07, 900, 0.35);
+  } else if (type === "power"){
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = "sine"; osc.frequency.setValueAtTime(180, t); osc.frequency.linearRampToValueAtTime(110, t+0.35);
+    gain.gain.setValueAtTime(0.001, t); gain.gain.linearRampToValueAtTime(0.22, t+0.06); gain.gain.linearRampToValueAtTime(0.001, t+0.4);
+    osc.start(); osc.stop(t+0.4);
+  } else if (type === "eatghost"){
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = "sawtooth"; osc.frequency.setValueAtTime(160,t); osc.frequency.exponentialRampToValueAtTime(760,t+0.18);
+    gain.gain.setValueAtTime(0.18,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.2);
+    osc.start(); osc.stop(t+0.2);
+  } else if (type === "lose"){
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = "triangle"; osc.frequency.setValueAtTime(300,t); osc.frequency.exponentialRampToValueAtTime(70,t+0.4);
+    gain.gain.setValueAtTime(0.22,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.4);
+    osc.start(); osc.stop(t+0.4);
+    noiseBurst(0.12, 500, 0.15);
+  } else if (type === "boom"){
+    const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = "sine"; osc.frequency.setValueAtTime(120,t); osc.frequency.exponentialRampToValueAtTime(35,t+0.5);
+    gain.gain.setValueAtTime(0.5,t); gain.gain.exponentialRampToValueAtTime(0.001,t+0.55);
+    osc.start(); osc.stop(t+0.55);
+    noiseBurst(0.25, 200, 0.25);
+  } else if (type === "level"){
+    [392.0, 493.88, 587.33, 783.99].forEach((f, i) => {
+      const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+      osc.connect(gain); gain.connect(audioCtx.destination);
+      osc.type = "sine"; osc.frequency.setValueAtTime(f, t + i*0.09);
+      gain.gain.setValueAtTime(0.001, t + i*0.09);
+      gain.gain.linearRampToValueAtTime(0.2, t + i*0.09 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + i*0.09 + 0.25);
+      osc.start(t + i*0.09); osc.stop(t + i*0.09 + 0.28);
+    });
+  }
 }
 
 // ---------- Input ----------
@@ -281,7 +393,8 @@ canvas.addEventListener("pointerup", (e) => {
   if (Math.hypot(dx, dy) < 12){
     const rect = canvas.getBoundingClientRect();
     const pos = entityPixelPos(player);
-    const cx = rect.left + pos.x, cy = rect.top + pos.y;
+    const scaleX = rect.width / (COLS*CELL), scaleY = rect.height / (ROWS*CELL);
+    const cx = rect.left + pos.x*scaleX, cy = rect.top + pos.y*scaleY;
     setPlayerDir(e.clientX - cx, e.clientY - cy);
   } else {
     setPlayerDir(dx, dy);
@@ -367,35 +480,73 @@ function updateGhost(g, dt){
 
 // ---------- Drawing ----------
 function drawMaze(){
-  ctx.fillStyle = "#020617"; ctx.fillRect(0, 0, COLS*CELL, ROWS*CELL);
-  const wallColor = ["#1e40af","#7c3aed","#0891b2","#b45309","#15803d","#be185d","#0369a1"][(level-1) % 7];
+  const bgGrad = ctx.createRadialGradient(COLS*CELL/2, ROWS*CELL/2, 20, COLS*CELL/2, ROWS*CELL/2, COLS*CELL*0.75);
+  bgGrad.addColorStop(0, "#16261a");
+  bgGrad.addColorStop(1, "#060d08");
+  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, COLS*CELL, ROWS*CELL);
+
+  const wallTop = ["#4a3322","#5a3d28","#3d4a2e","#4a3d22","#2e4a3a","#4a2e3d","#2e3d4a"][(level-1) % 7];
+  const wallBot = ["#2b1c12","#331f14","#232b1a","#2b2412","#1a2b22","#2b1a24","#1a232b"][(level-1) % 7];
   for (let r = 0; r < ROWS; r++){
     for (let c = 0; c < COLS; c++){
       if (grid[r][c] === "#"){
-        ctx.fillStyle = "#050b1f";
-        ctx.fillRect(c*CELL, r*CELL, CELL, CELL);
-        ctx.strokeStyle = wallColor;
-        ctx.lineWidth = 2;
-        ctx.strokeRect(c*CELL+1.5, r*CELL+1.5, CELL-3, CELL-3);
+        const x = c*CELL, y = r*CELL;
+        const wg = ctx.createLinearGradient(x, y, x, y+CELL);
+        wg.addColorStop(0, wallTop); wg.addColorStop(1, wallBot);
+        ctx.fillStyle = wg;
+        ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
+        ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1;
+        ctx.strokeRect(x+1.5, y+1.5, CELL-3, CELL-3);
+        ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(x+1, y+CELL-1); ctx.lineTo(x+CELL-1, y+CELL-1); ctx.stroke();
       }
     }
   }
-  ctx.strokeStyle = wallColor; ctx.lineWidth = 3;
+  ctx.strokeStyle = "#6b4226"; ctx.lineWidth = 3;
   ctx.strokeRect(1.5, 1.5, COLS*CELL-3, ROWS*CELL-3);
 
   for (let r = 0; r < ROWS; r++){
     for (let c = 0; c < COLS; c++){
       const cell = grid[r][c];
+      const cx = c*CELL+CELL/2, cy = r*CELL+CELL/2;
       if (cell === "."){
-        ctx.beginPath(); ctx.fillStyle = "#fbbf24";
-        ctx.arc(c*CELL+CELL/2, r*CELL+CELL/2, 2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+        drawCoconutDot(cx, cy, 3.4);
       } else if (cell === "o"){
-        const pulse = 4 + Math.sin(performance.now()*0.006)*1.5;
-        ctx.beginPath(); ctx.fillStyle = "#fde047";
-        ctx.arc(c*CELL+CELL/2, r*CELL+CELL/2, pulse, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+        const pulse = 5.6 + Math.sin(performance.now()*0.006)*1.2;
+        drawCoconutDot(cx, cy, pulse, true);
       }
     }
   }
+}
+
+function drawCoconutDot(cx, cy, r, glow){
+  ctx.save();
+  if (glow){
+    ctx.shadowColor = "rgba(255,224,150,0.7)";
+    ctx.shadowBlur = 8;
+  }
+  const grad = ctx.createRadialGradient(cx-r*0.35, cy-r*0.35, r*0.15, cx, cy, r);
+  grad.addColorStop(0, "#8a5a34");
+  grad.addColorStop(0.55, "#5c3a20");
+  grad.addColorStop(1, "#2e1c10");
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fillStyle = grad; ctx.fill();
+  ctx.restore();
+  ctx.fillStyle = "rgba(20,10,5,0.65)";
+  const s = r * 0.28;
+  ctx.beginPath(); ctx.arc(cx - r*0.28, cy - r*0.05, s*0.4, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + r*0.05, cy - r*0.3, s*0.4, 0, Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx + r*0.25, cy + r*0.15, s*0.4, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = "rgba(255,240,210,0.5)";
+  ctx.beginPath(); ctx.arc(cx - r*0.4, cy - r*0.4, r*0.22, 0, Math.PI*2); ctx.fill();
+}
+
+function drawShadowUnder(x, y, r){
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(x, y + r*0.75, r*0.9, r*0.32, 0, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(0,0,0,0.45)";
+  ctx.fill();
+  ctx.restore();
 }
 
 function drawPlayer(){
@@ -404,11 +555,26 @@ function drawPlayer(){
   const pos = entityPixelPos(player);
   const d = player.dir;
   const rot = d.x>0?0:(d.x<0?Math.PI:(d.y>0?Math.PI/2:(d.y<0?Math.PI*1.5:0)));
+
+  drawShadowUnder(pos.x, pos.y, 10);
+
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.5)";
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetY = 2;
   ctx.beginPath();
-  const grad = ctx.createRadialGradient(pos.x-4, pos.y-4, 2, pos.x, pos.y, 10);
-  grad.addColorStop(0, "#fff7cc"); grad.addColorStop(0.4, "#fbbf24"); grad.addColorStop(1, "#b45309");
-  ctx.arc(pos.x, pos.y, 10, rot+player.mouth, rot+Math.PI*2-player.mouth);
+  const grad = ctx.createRadialGradient(pos.x-4, pos.y-4.5, 1.5, pos.x, pos.y, 10.5);
+  grad.addColorStop(0, "#e8b183");
+  grad.addColorStop(0.35, "#c48552");
+  grad.addColorStop(0.75, "#8a5a34");
+  grad.addColorStop(1, "#4a2f1c");
+  ctx.arc(pos.x, pos.y, 10.5, rot+player.mouth, rot+Math.PI*2-player.mouth);
   ctx.lineTo(pos.x, pos.y); ctx.fillStyle = grad; ctx.fill(); ctx.closePath();
+  ctx.restore();
+  ctx.beginPath();
+  ctx.arc(pos.x-3, pos.y-4, 2.6, 0, Math.PI*2);
+  ctx.fillStyle = "rgba(255,235,210,0.55)";
+  ctx.fill();
 }
 
 function drawGhost(g){
@@ -420,6 +586,9 @@ function drawGhost(g){
   } else {
     pos = entityPixelPos(g);
   }
+
+  if (g.mode !== "house") drawShadowUnder(pos.x, pos.y, 10);
+
   ctx.beginPath();
   let color = g.color;
   if (g.mode === "frightened"){
@@ -435,6 +604,8 @@ function drawGhost(g){
     ctx.beginPath(); ctx.arc(pos.x+3.5, pos.y-2, 1.1, 0, Math.PI*2); ctx.fill(); ctx.closePath();
     return;
   }
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = 5; ctx.shadowOffsetY = 2;
   const grad = ctx.createRadialGradient(pos.x-3, pos.y-3, 1, pos.x, pos.y, r);
   grad.addColorStop(0, "#ffffff"); grad.addColorStop(0.3, color); grad.addColorStop(1, "#020617");
   ctx.arc(pos.x, pos.y, r, Math.PI, 0);
@@ -446,6 +617,7 @@ function drawGhost(g){
   ctx.lineTo(pos.x-r, pos.y+r);
   ctx.closePath();
   ctx.fillStyle = grad; ctx.fill();
+  ctx.restore();
   ctx.fillStyle = "#ffffff";
   ctx.beginPath(); ctx.arc(pos.x-3.5, pos.y-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
   ctx.beginPath(); ctx.arc(pos.x+3.5, pos.y-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
@@ -525,10 +697,11 @@ const launchBtn = document.createElement("button");
 launchBtn.innerText = "🥥 LAUNCH COCONUT HUNTER";
 Object.assign(launchBtn.style, {
   position:"absolute", top:"40%", left:"6%", width:"88%", padding:"15px",
-  fontSize:"15px", fontWeight:"bold", background:"#10b981", color:"#000",
-  border:"2px solid #34d399", borderRadius:"8px", zIndex:"999", fontFamily:"monospace", cursor:"pointer"
+  fontSize:"15px", fontWeight:"bold", background:"linear-gradient(180deg,#7dd68a,#3f9d5a)", color:"#08210f",
+  border:"2px solid #2f7a45", borderRadius:"10px", zIndex:"999", fontFamily:"inherit", cursor:"pointer",
+  boxShadow:"0 6px 0 rgba(0,0,0,0.35)"
 });
-document.getElementById("arenaWrapper").appendChild(launchBtn);
+arenaWrapper.appendChild(launchBtn);
 launchBtn.onclick = () => {
   launchBtn.remove(); setupAudio(); sound("level");
   gameRunning = true; startLevel(1); lastTime = 0;
@@ -536,12 +709,12 @@ launchBtn.onclick = () => {
 };
 
 buildMaze();
+resizeCanvas();
 drawMaze();
+setTimeout(resizeCanvas, 60); // second pass once layout has settled (mobile browser chrome)
 
 })();
 </script></body></html>
 """
 
-st.markdown('<div class="cab">', unsafe_allow_html=True)
-components.html(game_html, height=520, scrolling=False)
-st.markdown("</div>", unsafe_allow_html=True)
+components.html(game_html, height=900, scrolling=False)
