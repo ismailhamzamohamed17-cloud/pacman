@@ -133,14 +133,70 @@ function countDots(){
   return n;
 }
 
+function wrapCol(c){ if (c < 0) return COLS - 1; if (c >= COLS) return 0; return c; }
+
 function isWall(r, c){
   if (r < 0 || r >= ROWS) return true;
-  if (c < 0) c = COLS - 1;
-  if (c >= COLS) c = 0;
+  c = wrapCol(c);
   return grid[r][c] === "#";
 }
 
 function cellCenter(r, c){ return { x: c*CELL + CELL/2, y: r*CELL + CELL/2 }; }
+
+// ---------- Directions ----------
+const DIRS = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0}, none:{x:0,y:0} };
+function isNoneDir(d){ return d.x === 0 && d.y === 0; }
+function canMove(row, col, dir){
+  if (isNoneDir(dir)) return false;
+  return !isWall(row + dir.y, col + dir.x);
+}
+
+// ---------- Tile-based mover ----------
+// Every moving entity has: row, col (the tile it currently occupies), dir (direction
+// it is actively animating toward), nextDir (queued direction), moveProgress (0..1,
+// how far it has animated from `row,col` toward the next tile in `dir`).
+// Direction changes and wall checks ONLY happen exactly at tile boundaries
+// (moveProgress wrapping past 1, or starting from a dead stop) -- this keeps
+// movement smooth and prevents the col/row from ever disagreeing with what's
+// drawn on screen.
+function tryStep(e, speedCellsPerSec, dt, onArrive){
+  e.justArrived = false;
+  if (isNoneDir(e.dir)){
+    if (canMove(e.row, e.col, e.nextDir)){
+      e.dir = e.nextDir;
+      e.moveProgress = 0;
+    } else {
+      return; // still blocked, stay put
+    }
+  }
+  e.moveProgress += speedCellsPerSec * dt / 1000;
+  let guard = 0;
+  while (e.moveProgress >= 1 && guard < 4){
+    guard++;
+    e.moveProgress -= 1;
+    e.row += e.dir.y;
+    e.col = wrapCol(e.col + e.dir.x);
+    e.justArrived = true;
+    if (onArrive) onArrive(e);
+    if (canMove(e.row, e.col, e.nextDir)){
+      e.dir = e.nextDir;
+    }
+    if (!canMove(e.row, e.col, e.dir)){
+      e.dir = DIRS.none;
+      e.moveProgress = 0;
+      break;
+    }
+  }
+}
+
+function entityPixelPos(e){
+  const base = cellCenter(e.row, e.col);
+  let x = base.x + e.dir.x * e.moveProgress * CELL;
+  let y = base.y + e.dir.y * e.moveProgress * CELL;
+  if (x < 0) x += COLS*CELL;
+  if (x > COLS*CELL) x -= COLS*CELL;
+  return { x, y };
+}
 
 // ---------- Game state ----------
 let score = 0, lives = 3, level = 1, gameRunning = false, lastTime = 0;
@@ -149,21 +205,16 @@ let arcadeTickets = 0;
 try { arcadeTickets = parseInt(localStorage.getItem("arcade_tix_vault") || "0", 10); } catch(e){ arcadeTickets = 0; }
 tixEl.innerText = arcadeTickets;
 
-const DIRS = { up:{x:0,y:-1}, down:{x:0,y:1}, left:{x:-1,y:0}, right:{x:1,y:0}, none:{x:0,y:0} };
-
 function makePlayer(){
-  const c = cellCenter(PLAYER_START.r, PLAYER_START.c);
-  return { col: PLAYER_START.c, row: PLAYER_START.r, px: c.x, py: c.y, dir: DIRS.none, nextDir: DIRS.none, mouth: 0.2, mouthDir: 1 };
+  return { row: PLAYER_START.r, col: PLAYER_START.c, dir: DIRS.none, nextDir: DIRS.none, moveProgress: 0, mouth: 0.2, mouthDir: 1 };
 }
 
 const GHOST_COLORS = ["#ef4444", "#f472b6", "#22d3ee", "#f59e0b"];
 function makeGhosts(n){
-  const c = cellCenter(HOUSE_R, HOUSE_C);
   const list = [];
   for (let i = 0; i < n; i++){
     list.push({
-      col: HOUSE_C, row: HOUSE_R, px: c.x, py: c.y,
-      dir: DIRS.up, nextDir: DIRS.up,
+      row: HOUSE_R, col: HOUSE_C, dir: DIRS.up, nextDir: DIRS.up, moveProgress: 0,
       color: GHOST_COLORS[i % GHOST_COLORS.length],
       mode: "house", releaseAt: i * 1800, bob: Math.random()*Math.PI*2
     });
@@ -177,17 +228,18 @@ let ghosts = makeGhosts(ghostCount);
 let houseTimer = 0;
 
 function levelSpeeds(lvl){
+  // speeds expressed in grid-cells per second
   return {
-    player: 0.095,
-    ghost: 0.062 + lvl * 0.006,
-    frightened: 0.045,
-    eaten: 0.16,
+    player: 4.0,
+    ghost: 2.6 + lvl * 0.25,
+    frightened: 1.9,
+    eaten: 6.6,
     frightenedDuration: Math.max(2500, 7000 - lvl*550)
   };
 }
 let speeds = levelSpeeds(level);
 
-function startLevel(lvl, keepScore){
+function startLevel(lvl){
   level = lvl;
   buildMaze();
   dotsRemaining = countDots();
@@ -198,7 +250,6 @@ function startLevel(lvl, keepScore){
   speeds = levelSpeeds(lvl);
   frightenedTimer = 0; frightenedTotal = 0;
   stgEl.innerText = "LEVEL " + lvl;
-  if (!keepScore){ /* score persists across levels by design */ }
 }
 
 // ---------- Audio ----------
@@ -229,7 +280,8 @@ canvas.addEventListener("pointerup", (e) => {
   const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
   if (Math.hypot(dx, dy) < 12){
     const rect = canvas.getBoundingClientRect();
-    const cx = rect.left + player.px, cy = rect.top + player.py;
+    const pos = entityPixelPos(player);
+    const cx = rect.left + pos.x, cy = rect.top + pos.y;
     setPlayerDir(e.clientX - cx, e.clientY - cy);
   } else {
     setPlayerDir(dx, dy);
@@ -249,50 +301,28 @@ window.confirmAdvance = function(){
   clearScreen.style.display = "none";
   gameRunning = true; lastTime = 0;
   if (level >= MAX_LEVEL){ victoryScreen.style.display = "flex"; gameRunning = false; return; }
-  startLevel(level + 1, true);
+  startLevel(level + 1);
   requestAnimationFrame(loop);
 };
 window.confirmRestart = function(){
   failScreen.style.display = "none"; victoryScreen.style.display = "none";
   score = 0; scEl.innerText = 0; lives = 3; lvEl.innerText = 3;
   gameRunning = true; lastTime = 0;
-  startLevel(1, false);
+  startLevel(1);
   requestAnimationFrame(loop);
 };
 window.confirmRespawn = function(){
   caughtScreen.style.display = "none";
   gameRunning = true; lastTime = 0;
   player = makePlayer();
-  ghosts.forEach(g => { g.mode = "house"; const c = cellCenter(HOUSE_R, HOUSE_C); g.col=HOUSE_C; g.row=HOUSE_R; g.px=c.x; g.py=c.y; });
+  ghosts.forEach(g => { g.mode = "house"; g.row = HOUSE_R; g.col = HOUSE_C; g.dir = DIRS.up; g.nextDir = DIRS.up; g.moveProgress = 0; });
   houseTimer = 0;
   requestAnimationFrame(loop);
 };
 
-// ---------- Movement helpers ----------
-function canMove(col, row, dir){
-  if (dir.x === 0 && dir.y === 0) return false;
-  return !isWall(row + dir.y, col + dir.x);
-}
-function wrapCol(c){ if (c < 0) return COLS - 1; if (c >= COLS) return 0; return c; }
-
-function advanceEntity(e, speed, dt){
-  const center = cellCenter(e.row, e.col);
-  const atCenter = Math.abs(e.px - center.x) < speed*dt + 0.5 && Math.abs(e.py - center.y) < speed*dt + 0.5;
-  if (atCenter){
-    e.px = center.x; e.py = center.y;
-    if (canMove(e.col, e.row, e.nextDir)) e.dir = e.nextDir;
-    if (!canMove(e.col, e.row, e.dir)) e.dir = DIRS.none;
-  }
-  e.px += e.dir.x * speed * dt;
-  e.py += e.dir.y * speed * dt;
-  if (e.px < -CELL*0.5) e.px += COLS*CELL;
-  if (e.px > COLS*CELL - CELL*0.5) e.px -= COLS*CELL;
-  e.col = wrapCol(Math.round((e.px - CELL/2) / CELL));
-  e.row = Math.round((e.py - CELL/2) / CELL);
-}
-
+// ---------- Ghost AI ----------
 function chooseGhostDir(g, target, avoid){
-  const opts = ["up","down","left","right"].map(k => DIRS[k]).filter(d => canMove(g.col, g.row, d));
+  const opts = ["up","down","left","right"].map(k => DIRS[k]).filter(d => canMove(g.row, g.col, d));
   if (opts.length === 0) return DIRS.none;
   const reverse = { x: -g.dir.x, y: -g.dir.y };
   let filtered = opts.filter(d => !(d.x === reverse.x && d.y === reverse.y));
@@ -311,11 +341,9 @@ function chooseGhostDir(g, target, avoid){
 function updateGhost(g, dt){
   if (g.mode === "house"){
     g.bob += dt * 0.006;
-    g.py = cellCenter(HOUSE_R, HOUSE_C).y + Math.sin(g.bob) * 3;
     if (houseTimer >= g.releaseAt){
       g.mode = "chase";
-      g.col = HOUSE_C; g.row = HOUSE_R;
-      const c = cellCenter(HOUSE_R, HOUSE_C); g.px = c.x; g.py = c.y;
+      g.row = HOUSE_R; g.col = HOUSE_C; g.moveProgress = 0;
       g.dir = DIRS.up; g.nextDir = DIRS.up;
     }
     return;
@@ -328,13 +356,13 @@ function updateGhost(g, dt){
   } else {
     speed = speeds.ghost; target = { r: player.row, c: player.col };
   }
-  const center = cellCenter(g.row, g.col);
-  const atCenter = Math.abs(g.px - center.x) < speed*dt + 0.5 && Math.abs(g.py - center.y) < speed*dt + 0.5;
-  if (atCenter) g.nextDir = chooseGhostDir(g, target, avoid);
-  advanceEntity(g, speed, dt);
-  if (g.mode === "eaten" && g.col === HOUSE_C && g.row === HOUSE_R){
-    g.mode = "chase"; g.dir = DIRS.up; g.nextDir = DIRS.up;
-  }
+  tryStep(g, speed, dt, (ghost) => {
+    ghost.nextDir = chooseGhostDir(ghost, target, avoid);
+    if (ghost.mode === "eaten" && ghost.row === HOUSE_R && ghost.col === HOUSE_C){
+      ghost.mode = "chase";
+      ghost.dir = DIRS.up; ghost.nextDir = DIRS.up;
+    }
+  });
 }
 
 // ---------- Drawing ----------
@@ -373,17 +401,25 @@ function drawMaze(){
 function drawPlayer(){
   player.mouth += player.mouthDir * 0.012;
   if (player.mouth > 0.42 || player.mouth < 0.04) player.mouthDir *= -1;
+  const pos = entityPixelPos(player);
   const d = player.dir;
   const rot = d.x>0?0:(d.x<0?Math.PI:(d.y>0?Math.PI/2:(d.y<0?Math.PI*1.5:0)));
   ctx.beginPath();
-  const grad = ctx.createRadialGradient(player.px-4, player.py-4, 2, player.px, player.py, 10);
+  const grad = ctx.createRadialGradient(pos.x-4, pos.y-4, 2, pos.x, pos.y, 10);
   grad.addColorStop(0, "#fff7cc"); grad.addColorStop(0.4, "#fbbf24"); grad.addColorStop(1, "#b45309");
-  ctx.arc(player.px, player.py, 10, rot+player.mouth, rot+Math.PI*2-player.mouth);
-  ctx.lineTo(player.px, player.py); ctx.fillStyle = grad; ctx.fill(); ctx.closePath();
+  ctx.arc(pos.x, pos.y, 10, rot+player.mouth, rot+Math.PI*2-player.mouth);
+  ctx.lineTo(pos.x, pos.y); ctx.fillStyle = grad; ctx.fill(); ctx.closePath();
 }
 
 function drawGhost(g){
   const r = 10;
+  let pos;
+  if (g.mode === "house"){
+    const hc = cellCenter(HOUSE_R, HOUSE_C);
+    pos = { x: hc.x, y: hc.y + Math.sin(g.bob) * 3 };
+  } else {
+    pos = entityPixelPos(g);
+  }
   ctx.beginPath();
   let color = g.color;
   if (g.mode === "frightened"){
@@ -392,31 +428,31 @@ function drawGhost(g){
   }
   if (g.mode === "eaten"){
     ctx.fillStyle = "#e5e7eb";
-    ctx.beginPath(); ctx.arc(g.px-3.5, g.py-2, 2.4, 0, Math.PI*2); ctx.fill(); ctx.closePath();
-    ctx.beginPath(); ctx.arc(g.px+3.5, g.py-2, 2.4, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+    ctx.beginPath(); ctx.arc(pos.x-3.5, pos.y-2, 2.4, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+    ctx.beginPath(); ctx.arc(pos.x+3.5, pos.y-2, 2.4, 0, Math.PI*2); ctx.fill(); ctx.closePath();
     ctx.fillStyle = "#0f172a";
-    ctx.beginPath(); ctx.arc(g.px-3.5, g.py-2, 1.1, 0, Math.PI*2); ctx.fill(); ctx.closePath();
-    ctx.beginPath(); ctx.arc(g.px+3.5, g.py-2, 1.1, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+    ctx.beginPath(); ctx.arc(pos.x-3.5, pos.y-2, 1.1, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+    ctx.beginPath(); ctx.arc(pos.x+3.5, pos.y-2, 1.1, 0, Math.PI*2); ctx.fill(); ctx.closePath();
     return;
   }
-  const grad = ctx.createRadialGradient(g.px-3, g.py-3, 1, g.px, g.py, r);
+  const grad = ctx.createRadialGradient(pos.x-3, pos.y-3, 1, pos.x, pos.y, r);
   grad.addColorStop(0, "#ffffff"); grad.addColorStop(0.3, color); grad.addColorStop(1, "#020617");
-  ctx.arc(g.px, g.py, r, Math.PI, 0);
-  const wob = Math.sin(performance.now()*0.01 + g.px*0.2) * 2;
-  ctx.lineTo(g.px+r, g.py+r);
-  ctx.lineTo(g.px+r*0.5, g.py+r-wob);
-  ctx.lineTo(g.px, g.py+r);
-  ctx.lineTo(g.px-r*0.5, g.py+r-wob);
-  ctx.lineTo(g.px-r, g.py+r);
+  ctx.arc(pos.x, pos.y, r, Math.PI, 0);
+  const wob = Math.sin(performance.now()*0.01 + pos.x*0.2) * 2;
+  ctx.lineTo(pos.x+r, pos.y+r);
+  ctx.lineTo(pos.x+r*0.5, pos.y+r-wob);
+  ctx.lineTo(pos.x, pos.y+r);
+  ctx.lineTo(pos.x-r*0.5, pos.y+r-wob);
+  ctx.lineTo(pos.x-r, pos.y+r);
   ctx.closePath();
   ctx.fillStyle = grad; ctx.fill();
   ctx.fillStyle = "#ffffff";
-  ctx.beginPath(); ctx.arc(g.px-3.5, g.py-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
-  ctx.beginPath(); ctx.arc(g.px+3.5, g.py-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+  ctx.beginPath(); ctx.arc(pos.x-3.5, pos.y-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+  ctx.beginPath(); ctx.arc(pos.x+3.5, pos.y-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
   ctx.fillStyle = "#0f172a";
   const ex = g.dir.x*1.2, ey = g.dir.y*1.2;
-  ctx.beginPath(); ctx.arc(g.px-3.5+ex, g.py-1+ey, 1.2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
-  ctx.beginPath(); ctx.arc(g.px+3.5+ex, g.py-1+ey, 1.2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+  ctx.beginPath(); ctx.arc(pos.x-3.5+ex, pos.y-1+ey, 1.2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+  ctx.beginPath(); ctx.arc(pos.x+3.5+ex, pos.y-1+ey, 1.2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
 }
 
 // ---------- Main loop ----------
@@ -439,26 +475,29 @@ function loop(timestamp){
 
   houseTimer += dt;
 
-  advanceEntity(player, speeds.player, dt);
-  const cell = grid[player.row] ? grid[player.row][player.col] : undefined;
-  if (cell === "."){
-    grid[player.row][player.col] = " "; dotsRemaining--; score += 10; scEl.innerText = score; sound("waka");
-    arcadeTickets += 1; try { localStorage.setItem("arcade_tix_vault", arcadeTickets.toString()); } catch(e){}
-    tixEl.innerText = arcadeTickets;
-  } else if (cell === "o"){
-    grid[player.row][player.col] = " "; dotsRemaining--; score += 50; scEl.innerText = score; sound("power");
-    frightenedTimer = speeds.frightenedDuration; frightenedTotal = speeds.frightenedDuration;
-    ghosts.forEach(g => { if (g.mode !== "house" && g.mode !== "eaten") g.mode = "frightened"; });
-  }
+  tryStep(player, speeds.player, dt, (p) => {
+    const cell = grid[p.row] ? grid[p.row][p.col] : undefined;
+    if (cell === "."){
+      grid[p.row][p.col] = " "; dotsRemaining--; score += 10; scEl.innerText = score; sound("waka");
+      arcadeTickets += 1; try { localStorage.setItem("arcade_tix_vault", arcadeTickets.toString()); } catch(e){}
+      tixEl.innerText = arcadeTickets;
+    } else if (cell === "o"){
+      grid[p.row][p.col] = " "; dotsRemaining--; score += 50; scEl.innerText = score; sound("power");
+      frightenedTimer = speeds.frightenedDuration; frightenedTotal = speeds.frightenedDuration;
+      ghosts.forEach(g => { if (g.mode !== "house" && g.mode !== "eaten") g.mode = "frightened"; });
+    }
+  });
 
   ghosts.forEach(g => updateGhost(g, dt));
 
   drawPlayer();
   ghosts.forEach(drawGhost);
 
+  const playerPos = entityPixelPos(player);
   for (const g of ghosts){
     if (g.mode === "house") continue;
-    if (Math.hypot(player.px - g.px, player.py - g.py) < 13){
+    const gPos = entityPixelPos(g);
+    if (Math.hypot(playerPos.x - gPos.x, playerPos.y - gPos.y) < 13){
       if (g.mode === "frightened"){
         g.mode = "eaten"; score += 200; scEl.innerText = score; sound("eatghost");
       } else if (g.mode === "chase"){
@@ -492,7 +531,7 @@ Object.assign(launchBtn.style, {
 document.getElementById("arenaWrapper").appendChild(launchBtn);
 launchBtn.onclick = () => {
   launchBtn.remove(); setupAudio(); sound("level");
-  gameRunning = true; startLevel(1, false); lastTime = 0;
+  gameRunning = true; startLevel(1); lastTime = 0;
   requestAnimationFrame(loop);
 };
 
