@@ -1,65 +1,91 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
-<title>Coconut Hunter: Maze Arcade</title>
-<style>
-  html,body { background:#030712; margin:0; padding:0; }
-  body { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'Courier New',monospace; user-select:none; -webkit-user-select:none; padding:14px 0 30px; }
-  .cab { background:#060913; padding:14px; border-radius:18px; border:2px solid #1e1b4b; text-align:center; max-width:400px; margin:auto; box-shadow:0 20px 60px rgba(0,0,0,0.6); }
-  .bn { background:#0f172a; padding:12px; border-radius:10px; color:#e2e8f0; font-size:12px; text-align:left; margin-bottom:12px; border:1px solid #334155; }
-  .bn b { color:#facc15; }
-  #ticketVault { color:#10b981; font-size:13px; font-weight:bold; text-align:left; margin-bottom:4px; }
-  #ui { color:#fff; font-size:14px; font-weight:bold; display:flex; justify-content:space-between; margin:6px 0; letter-spacing:0.5px; }
-  #arenaWrapper { position:relative; width:360px; height:360px; margin:auto; }
-  canvas { border:3px solid #10b981; background:#020617; border-radius:12px; width:360px; height:360px; box-shadow:0 16px 40px rgba(0,0,0,0.85); touch-action:none; cursor:crosshair; display:block; }
-  .msg-overlay { position:absolute; inset:0; background:rgba(2,6,23,0.94); border-radius:12px; display:none; flex-direction:column; align-items:center; justify-content:center; z-index:100; color:#fff; text-align:center; padding:15px; }
-  .msg-title { font-size:24px; font-weight:bold; margin-bottom:8px; font-family:sans-serif; letter-spacing:1px; }
-  .msg-btn { margin-top:15px; padding:10px 24px; font-size:14px; font-weight:bold; border-radius:6px; border:none; cursor:pointer; text-transform:uppercase; font-family:monospace; }
-  .overlay-clear { color:#10b981; text-shadow:0 0 10px rgba(16,185,129,0.4); }
-  .overlay-fail { color:#ef4444; text-shadow:0 0 10px rgba(239,68,68,0.4); }
-  .overlay-win { color:#f59e0b; text-shadow:0 0 12px rgba(245,158,11,0.5); }
-  .overlay-warn { color:#f59e0b; text-shadow:0 0 10px rgba(245,158,11,0.4); }
-  .ad-slot { width:360px; height:50px; background:#0f172a; border:1px dashed #1e293b; border-radius:6px; margin-top:15px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#475569; font-size:10px; }
-  #hint { color:#64748b; font-size:11px; margin-top:8px; }
-</style>
-</head>
-<body>
-<div class="cab">
-  <div class="bn"><b>🥥 COCONUT HUNTER: MAZE PROTOCOL</b><br>Real corridors, real walls, a ghost den in the center, and side tunnels that wrap around. Grab a power pellet to turn the hunters blue and eat them back.</div>
-  <div id="ticketVault">🎟️ ECO VAULT TICKETS: <span id="tix">0</span></div>
-  <div id="ui"><div id="stg">LEVEL 1</div><div>🥇 SCORE: <span id="sc">0</span></div><div>❤️ LIVES: <span id="lv">3</span></div></div>
-  <div id="arenaWrapper">
-    <canvas id="cv" width="360" height="360"></canvas>
-    <div id="clearScreen" class="msg-overlay">
-      <div class="msg-title overlay-clear">LEVEL CLEARED! 🌴</div>
-      <div style="color:#94a3b8;font-size:12px;">Maze secured. Hunters regroup and speed up next round.</div>
-      <button class="msg-btn" style="background:#10b981;color:#000;" onclick="confirmAdvance()">NEXT LEVEL ➡️</button>
-    </div>
-    <div id="caughtScreen" class="msg-overlay">
-      <div class="msg-title overlay-warn">INTERCEPTED! 💥</div>
-      <div style="color:#94a3b8;font-size:12px;">A rival hunter caught you. Resetting position.</div>
-      <button class="msg-btn" style="background:#f59e0b;color:#000;" onclick="confirmRespawn()">REDEPLOY HUNTER 🥥</button>
-    </div>
-    <div id="failScreen" class="msg-overlay">
-      <div class="msg-title overlay-fail">GAME OVER 💀</div>
-      <div id="finalScoreInfo" style="color:#94a3b8;font-size:12px;margin-bottom:5px;">Your final harvest has been logged.</div>
-      <button class="msg-btn" style="background:#ef4444;color:#fff;" onclick="confirmRestart()">RETRY HARVEST 🔄</button>
-    </div>
-    <div id="victoryScreen" class="msg-overlay">
-      <div class="msg-title overlay-win">GRAND CHAMPION! 👑</div>
-      <div style="color:#fff;font-size:13px;font-weight:bold;line-height:1.4;">YOU CLEARED EVERY MAZE LEVEL!<br>You dominate the global leaderboard!</div>
-      <button class="msg-btn" style="background:#f59e0b;color:#000;" onclick="confirmRestart()">RESTART CAMPAIGN 🎮</button>
-    </div>
-  </div>
-  <div id="hint">Swipe / drag on the maze, or use arrow keys, to steer.</div>
-  <div class="ad-slot">
-    <div style="font-weight:bold;color:#475569;">ADVERTISEMENT REVENUE STREAM</div>
-    <div style="font-size:8px;color:#334155;">Google AdSense Mobile H5 SDK Container Slot</div>
-  </div>
-</div>
+import streamlit as st
+import streamlit.components.v1 as components
 
+st.set_page_config(
+    page_title="Coconut Hunter: Maze Arcade",
+    page_icon="🥥",
+    layout="centered"
+)
+
+# Custom Global CSS Layout Blocks
+st.markdown("""<style>
+    .cab {
+        background: #060913;
+        padding: 10px;
+        border-radius: 16px;
+        border: 2px solid #1e1b4b;
+        text-align: center;
+        max-width: 400px;
+        margin: auto;
+    }
+    .bn {
+        background: #0f172a;
+        padding: 12px;
+        border-radius: 10px;
+        color: #e2e8f0;
+        font-family: monospace;
+        font-size: 12px;
+        text-align: left;
+        margin-bottom: 10px;
+        border: 1px solid #334155;
+        max-width: 380px;
+        margin-left: auto;
+        margin-right: auto;
+    }
+</style>""", unsafe_allow_html=True)
+
+st.markdown('<div class="bn"><b>🥥 COCONUT HUNTER: MAZE PROTOCOL</b><br>Real corridors, real walls, a ghost den in the center, and side tunnels that wrap around. Grab a power pellet to turn the hunters blue and eat them back.</div>', unsafe_allow_html=True)
+
+game_html = """
+<!DOCTYPE html><html><head>
+<meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+<style>
+    body { background:#030712; margin:0; padding:4px; display:flex; flex-direction:column; align-items:center; font-family:monospace; user-select:none; -webkit-user-select:none; }
+    #arenaWrapper { position: relative; width: 360px; height: 360px; }
+    canvas { border:3px solid #10b981; background:#020617; border-radius:12px; width:360px; height:360px; box-shadow: 0 16px 40px rgba(0,0,0,0.85); touch-action: none; cursor: crosshair; }
+    #ui { color:#fff; font-size:14px; font-weight:bold; width:360px; display:flex; justify-content:space-between; margin:6px 0; letter-spacing:0.5px; }
+    #ticketVault { color: #10b981; font-size:13px; font-weight:bold; width:360px; text-align:left; margin-bottom:4px; }
+    .msg-overlay { position: absolute; inset: 0; background: rgba(2, 6, 23, 0.94); border-radius: 12px; display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; color: #fff; text-align: center; padding: 15px; }
+    .msg-title { font-size: 24px; font-weight: bold; margin-bottom: 8px; font-family: sans-serif; letter-spacing: 1px; }
+    .msg-btn { margin-top: 15px; padding: 10px 24px; font-size: 14px; font-weight: bold; border-radius: 6px; border: none; cursor: pointer; text-transform: uppercase; font-family: monospace; }
+    .overlay-clear { color: #10b981; text-shadow: 0 0 10px rgba(16,185,129,0.4); }
+    .overlay-fail { color: #ef4444; text-shadow: 0 0 10px rgba(239,68,68,0.4); }
+    .overlay-win { color: #f59e0b; text-shadow: 0 0 12px rgba(245,158,11,0.5); }
+    .overlay-warn { color: #f59e0b; text-shadow: 0 0 10px rgba(245,158,11,0.4); }
+    .ad-container-slot { width: 360px; height: 50px; background: #0f172a; border: 1px dashed #1e293b; border-radius: 6px; margin-top: 15px; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #475569; font-size: 10px; }
+    #hint { color:#64748b; font-size:11px; margin-top:8px; }
+</style></head>
+<body>
+    <div id="ticketVault">🎟️ ECO VAULT TICKETS: <span id="tix">0</span></div>
+    <div id="ui"><div id="stg">LEVEL 1</div><div>🥇 SCORE: <span id="sc">0</span></div><div>❤️ LIVES: <span id="lv">3</span></div></div>
+    <div id="arenaWrapper">
+        <canvas id="cv" width="360" height="360"></canvas>
+        <div id="clearScreen" class="msg-overlay">
+            <div class="msg-title overlay-clear">LEVEL CLEARED! 🌴</div>
+            <div style="color:#94a3b8;font-size:12px;">Maze secured. Hunters regroup and speed up next round.</div>
+            <button class="msg-btn" style="background:#10b981;color:#000;" onclick="confirmAdvance()">NEXT LEVEL ➡️</button>
+        </div>
+        <div id="caughtScreen" class="msg-overlay">
+            <div class="msg-title overlay-warn">INTERCEPTED! 💥</div>
+            <div style="color:#94a3b8;font-size:12px;">A rival hunter caught you. Resetting position.</div>
+            <button class="msg-btn" style="background:#f59e0b;color:#000;" onclick="confirmRespawn()">REDEPLOY HUNTER 🥥</button>
+        </div>
+        <div id="failScreen" class="msg-overlay">
+            <div class="msg-title overlay-fail">GAME OVER 💀</div>
+            <div id="finalScoreInfo" style="color:#94a3b8;font-size:12px;margin-bottom:5px;">Your final harvest has been logged.</div>
+            <button class="msg-btn" style="background:#ef4444;color:#fff;" onclick="confirmRestart()">RETRY HARVEST 🔄</button>
+        </div>
+        <div id="victoryScreen" class="msg-overlay">
+            <div class="msg-title overlay-win">GRAND CHAMPION! 👑</div>
+            <div style="color:#fff;font-size:13px;font-weight:bold;line-height:1.4;">YOU CLEARED EVERY MAZE LEVEL!<br>You dominate the global leaderboard!</div>
+            <button class="msg-btn" style="background:#f59e0b;color:#000;" onclick="confirmRestart()">RESTART CAMPAIGN 🎮</button>
+        </div>
+    </div>
+    <div id="hint">Swipe / drag on the maze, or use arrow keys, to steer.</div>
+    <div class="ad-container-slot">
+        <div style="font-weight:bold;color:#475569;">ADVERTISEMENT REVENUE STREAM</div>
+        <div style="font-size:8px;color:#334155;">Google AdSense Mobile H5 SDK Container Slot</div>
+    </div>
 <script>
 (function(){
 "use strict";
@@ -92,15 +118,11 @@ function buildMaze(){
     }
     grid.push(row);
   }
-  // tunnel openings on the middle row
   grid[TUNNEL_R][0] = " ";
   grid[TUNNEL_R][COLS-1] = " ";
-  // ghost house: plus-shape naturally framed by the lattice pillars
   [[HOUSE_R-1,HOUSE_C],[HOUSE_R,HOUSE_C-1],[HOUSE_R,HOUSE_C],[HOUSE_R,HOUSE_C+1],[HOUSE_R+1,HOUSE_C]]
     .forEach(([r,c]) => { grid[r][c] = " "; });
-  // player start, no dot sitting under the player at spawn
   grid[PLAYER_START.r][PLAYER_START.c] = " ";
-  // power pellets
   POWER_CELLS.forEach(([r,c]) => { grid[r][c] = "o"; });
 }
 
@@ -113,7 +135,7 @@ function countDots(){
 
 function isWall(r, c){
   if (r < 0 || r >= ROWS) return true;
-  if (c < 0) c = COLS - 1;      // tunnel wrap
+  if (c < 0) c = COLS - 1;
   if (c >= COLS) c = 0;
   return grid[r][c] === "#";
 }
@@ -206,7 +228,6 @@ canvas.addEventListener("pointerup", (e) => {
   if (!dragStart || !gameRunning) return;
   const dx = e.clientX - dragStart.x, dy = e.clientY - dragStart.y;
   if (Math.hypot(dx, dy) < 12){
-    // tap: steer relative to the player's current position
     const rect = canvas.getBoundingClientRect();
     const cx = rect.left + player.px, cy = rect.top + player.py;
     setPlayerDir(e.clientX - cx, e.clientY - cy);
@@ -264,7 +285,6 @@ function advanceEntity(e, speed, dt){
   }
   e.px += e.dir.x * speed * dt;
   e.py += e.dir.y * speed * dt;
-  // tunnel wrap in pixel space
   if (e.px < -CELL*0.5) e.px += COLS*CELL;
   if (e.px > COLS*CELL - CELL*0.5) e.px -= COLS*CELL;
   e.col = wrapCol(Math.round((e.px - CELL/2) / CELL));
@@ -274,7 +294,6 @@ function advanceEntity(e, speed, dt){
 function chooseGhostDir(g, target, avoid){
   const opts = ["up","down","left","right"].map(k => DIRS[k]).filter(d => canMove(g.col, g.row, d));
   if (opts.length === 0) return DIRS.none;
-  // don't reverse unless it's the only option
   const reverse = { x: -g.dir.x, y: -g.dir.y };
   let filtered = opts.filter(d => !(d.x === reverse.x && d.y === reverse.y));
   if (filtered.length === 0) filtered = opts;
@@ -333,7 +352,6 @@ function drawMaze(){
       }
     }
   }
-  // outer border glow
   ctx.strokeStyle = wallColor; ctx.lineWidth = 3;
   ctx.strokeRect(1.5, 1.5, COLS*CELL-3, ROWS*CELL-3);
 
@@ -373,7 +391,6 @@ function drawGhost(g){
     color = flashing ? "#e0f2fe" : "#1d4ed8";
   }
   if (g.mode === "eaten"){
-    // just eyes
     ctx.fillStyle = "#e5e7eb";
     ctx.beginPath(); ctx.arc(g.px-3.5, g.py-2, 2.4, 0, Math.PI*2); ctx.fill(); ctx.closePath();
     ctx.beginPath(); ctx.arc(g.px+3.5, g.py-2, 2.4, 0, Math.PI*2); ctx.fill(); ctx.closePath();
@@ -422,7 +439,6 @@ function loop(timestamp){
 
   houseTimer += dt;
 
-  // player movement + eating
   advanceEntity(player, speeds.player, dt);
   const cell = grid[player.row] ? grid[player.row][player.col] : undefined;
   if (cell === "."){
@@ -440,7 +456,6 @@ function loop(timestamp){
   drawPlayer();
   ghosts.forEach(drawGhost);
 
-  // collisions
   for (const g of ghosts){
     if (g.mode === "house") continue;
     if (Math.hypot(player.px - g.px, player.py - g.py) < 13){
@@ -481,10 +496,13 @@ launchBtn.onclick = () => {
   requestAnimationFrame(loop);
 };
 
-buildMaze(); // draw an initial static preview behind the launch button
+buildMaze();
 drawMaze();
 
 })();
-</script>
-</body>
-</html>
+</script></body></html>
+"""
+
+st.markdown('<div class="cab">', unsafe_allow_html=True)
+components.html(game_html, height=520, scrolling=False)
+st.markdown("</div>", unsafe_allow_html=True)
