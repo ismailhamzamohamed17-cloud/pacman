@@ -1,4 +1,4 @@
-import streamlit as st
+\import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(
@@ -40,18 +40,56 @@ game_html = """
     .island { position:absolute; bottom:32%; opacity:0.55; filter:blur(0.3px); pointer-events:none; }
     .island.i1 { left:2%; width:26vw; height:9vh; background:#0d2f33; border-radius:50% 50% 0 0 / 100% 100% 0 0; }
     .island.i2 { right:4%; width:34vw; height:12vh; background:#0a2529; border-radius:50% 50% 0 0 / 100% 100% 0 0; opacity:0.7; }
-    .palm { position:absolute; bottom:31%; width:6vw; max-width:60px; min-width:26px; opacity:0.85; pointer-events:none; filter:drop-shadow(0 0 6px rgba(0,0,0,0.4)); }
+
+    /* drifting clouds, parallax layer behind everything */
+    .cloud { position:absolute; border-radius:50%; z-index:1; pointer-events:none; filter:blur(1.5px);
+        background: radial-gradient(ellipse at 50% 50%, rgba(255,255,255,0.92), rgba(255,255,255,0.18) 60%, transparent 76%); }
+    .cloud.c1 { top:8%; width:24vw; height:6vh; opacity:0.85; animation: driftCloud 46s linear infinite; }
+    .cloud.c2 { top:16%; width:16vw; height:4.5vh; opacity:0.65; animation: driftCloud 62s linear infinite; animation-delay:-18s; }
+    .cloud.c3 { top:5%; width:30vw; height:7vh; opacity:0.5; animation: driftCloud 78s linear infinite; animation-delay:-40s; }
+    @keyframes driftCloud { from { transform:translateX(-32vw); } to { transform:translateX(132vw); } }
+
+    .palm { position:absolute; bottom:31%; width:6vw; max-width:60px; min-width:26px; opacity:0.85; pointer-events:none;
+        filter:drop-shadow(0 0 6px rgba(0,0,0,0.4)); z-index:2; }
     .palm svg { width:100%; height:auto; display:block; }
     .palm.p1 { left:4%; bottom:30%; transform:scale(1.3); }
     .palm.p2 { left:12%; bottom:28%; transform:scale(0.85) scaleX(-1); }
     .palm.p3 { right:6%; bottom:29%; transform:scale(1.1) scaleX(-1); }
     .palm.p4 { right:16%; bottom:26%; transform:scale(0.7); }
-    /* ocean shimmer */
-    .ocean-shine { position:absolute; left:0; right:0; bottom:0; height:34%;
-        background: repeating-linear-gradient(100deg, rgba(255,255,255,0.05) 0px, rgba(255,255,255,0.05) 2px, transparent 2px, transparent 40px);
-        pointer-events:none; mix-blend-mode: screen; }
+    /* the fronds sway independently of the outer positioning/scale transform */
+    .palm-sway { transform-origin:50% 100%; animation: swayTree 4.2s ease-in-out infinite; }
+    .palm-sway.sway-a { animation-duration:4.3s; }
+    .palm-sway.sway-b { animation-duration:3.6s; animation-delay:-1.1s; }
+    .palm-sway.sway-c { animation-duration:5.1s; animation-delay:-2.4s; }
+    .palm-sway.sway-d { animation-duration:3.9s; animation-delay:-0.6s; }
+    @keyframes swayTree { 0%,100% { transform: rotate(-4deg); } 50% { transform: rotate(4deg); } }
+
+    /* ocean shimmer, animated to look like flowing water */
+    .ocean-shine { position:absolute; left:0; right:0; bottom:0; height:34%; background-size:200% 100%;
+        background-image: repeating-linear-gradient(100deg, rgba(255,255,255,0.06) 0px, rgba(255,255,255,0.06) 2px, transparent 2px, transparent 40px);
+        pointer-events:none; mix-blend-mode: screen; animation: waveFlow 5s linear infinite; }
+    @keyframes waveFlow { 0% { background-position: 0 0; } 100% { background-position: -160px 0; } }
     .sand-strip { position:absolute; left:0; right:0; bottom:0; height:6%;
         background: linear-gradient(180deg, #d9b06a 0%, #b98a4a 100%); pointer-events:none; }
+
+    /* ---------- Loading screen ---------- */
+    .loading-overlay {
+        position:fixed; inset:0; z-index:99999;
+        display:flex; flex-direction:column; align-items:center; justify-content:center;
+        background: radial-gradient(circle at 50% 32%, #2a5d6b 0%, #143548 45%, #081521 100%);
+        transition: opacity 0.7s ease, visibility 0.7s ease;
+    }
+    .loading-overlay.hide { opacity:0; visibility:hidden; pointer-events:none; }
+    .loading-coconut { font-size:clamp(46px,11vw,84px); animation: bounceCoconut 1.15s ease-in-out infinite;
+        filter: drop-shadow(0 10px 12px rgba(0,0,0,0.55)); }
+    @keyframes bounceCoconut { 0%,100% { transform: translateY(0) rotate(-10deg); } 50% { transform: translateY(-18px) rotate(10deg); } }
+    .loading-title { color:#ffe9b0; font-size:clamp(18px,4.6vw,30px); font-weight:bold; letter-spacing:2px;
+        margin-top:16px; text-shadow:0 2px 6px rgba(0,0,0,0.6); text-align:center; }
+    .loading-sub { color:#a9c4d4; font-size:clamp(10px,2.3vw,13px); margin-top:6px; letter-spacing:1px; text-align:center; }
+    .loading-bar-track { width:min(70vw,300px); height:10px; background:rgba(255,255,255,0.14);
+        border-radius:6px; margin-top:24px; overflow:hidden; box-shadow: inset 0 1px 3px rgba(0,0,0,0.5); }
+    .loading-bar-fill { height:100%; width:0%; border-radius:6px;
+        background: linear-gradient(90deg, #ffce6b, #7be39a); transition: width 1.9s cubic-bezier(.2,.7,.3,1); }
 
     #hud {
         position:relative; z-index:5; width:min(96vw, 620px);
@@ -85,12 +123,22 @@ game_html = """
     #hint { color:#f1e4c8; font-size:clamp(9px,2vw,11px); margin:4px 0 2px; text-shadow:0 1px 2px rgba(0,0,0,0.6); z-index:5; }
 </style></head>
 <body>
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-coconut">🥥</div>
+        <div class="loading-title">COCONUT HUNTER</div>
+        <div class="loading-sub">Charting the maze islands...</div>
+        <div class="loading-bar-track"><div id="loadingBarFill" class="loading-bar-fill"></div></div>
+    </div>
+
+    <div class="cloud c1"></div>
+    <div class="cloud c2"></div>
+    <div class="cloud c3"></div>
     <div class="island i1"></div>
     <div class="island i2"></div>
-    <div class="palm p1"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#1e4d2b"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/><path d="M33 38 Q15 10 8 22 Q25 28 33 40Z"/><path d="M33 38 Q52 8 58 20 Q40 26 33 40Z"/><path d="M33 36 Q30 4 22 8 Q28 24 33 38Z"/></g></svg></div>
-    <div class="palm p2"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#194023"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/><path d="M33 38 Q15 10 8 22 Q25 28 33 40Z"/><path d="M33 38 Q52 8 58 20 Q40 26 33 40Z"/></g></svg></div>
-    <div class="palm p3"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#1e4d2b"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/><path d="M33 38 Q15 10 8 22 Q25 28 33 40Z"/><path d="M33 38 Q52 8 58 20 Q40 26 33 40Z"/></g></svg></div>
-    <div class="palm p4"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#194023"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/></g></svg></div>
+    <div class="palm p1"><div class="palm-sway sway-a"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#1e4d2b"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/><path d="M33 38 Q15 10 8 22 Q25 28 33 40Z"/><path d="M33 38 Q52 8 58 20 Q40 26 33 40Z"/><path d="M33 36 Q30 4 22 8 Q28 24 33 38Z"/></g></svg></div></div>
+    <div class="palm p2"><div class="palm-sway sway-b"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#194023"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/><path d="M33 38 Q15 10 8 22 Q25 28 33 40Z"/><path d="M33 38 Q52 8 58 20 Q40 26 33 40Z"/></g></svg></div></div>
+    <div class="palm p3"><div class="palm-sway sway-c"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#1e4d2b"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/><path d="M33 38 Q15 10 8 22 Q25 28 33 40Z"/><path d="M33 38 Q52 8 58 20 Q40 26 33 40Z"/></g></svg></div></div>
+    <div class="palm p4"><div class="palm-sway sway-d"><svg viewBox="0 0 60 100"><path d="M30 100 L33 40" stroke="#3a2317" stroke-width="4" fill="none"/><g fill="#194023"><path d="M33 40 Q5 25 2 45 Q20 40 33 42Z"/><path d="M33 40 Q60 20 58 42 Q38 38 33 42Z"/></g></svg></div></div>
     <div class="ocean-shine"></div>
     <div class="sand-strip"></div>
 
@@ -148,6 +196,14 @@ try {
     }
   }
 } catch(e){ /* cross-origin fallback: game still fills its own iframe */ }
+
+// ---------- Loading screen ----------
+(function(){
+  const overlay = document.getElementById("loadingOverlay");
+  const fill = document.getElementById("loadingBarFill");
+  requestAnimationFrame(() => { fill.style.width = "100%"; });
+  setTimeout(() => { overlay.classList.add("hide"); }, 2100);
+})();
 
 // ---------- Grid / maze setup ----------
 const COLS = 15, ROWS = 15, CELL = 24; // logical drawing units, scaled to fit screen
