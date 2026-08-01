@@ -91,6 +91,9 @@ game_html = """
     .loading-bar-fill { height:100%; width:0%; border-radius:6px;
         background: linear-gradient(90deg, #ffce6b, #7be39a); transition: width 1.9s cubic-bezier(.2,.7,.3,1); }
 
+    .tap-screen { cursor:pointer; }
+    @keyframes pulseTap { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.06); opacity:0.8; } }
+
     #hud {
         position:relative; z-index:5; width:min(96vw, 620px);
         display:flex; flex-direction:column; align-items:center; margin-bottom: 0.4vh;
@@ -149,6 +152,11 @@ game_html = """
 
     <div id="arenaWrapper">
         <canvas id="cv"></canvas>
+        <div id="tapScreen" class="msg-overlay tap-screen">
+            <div class="loading-coconut" style="font-size:clamp(40px,9vw,64px);">🥥</div>
+            <div class="msg-title overlay-clear" style="animation: pulseTap 1.3s ease-in-out infinite;">TAP TO BEGIN</div>
+            <div style="color:#cbd5c9;font-size:12px;margin-top:4px;">Swipe, drag, or use arrow keys once inside</div>
+        </div>
         <div id="clearScreen" class="msg-overlay">
             <div class="msg-title overlay-clear">LEVEL CLEARED! 🌴</div>
             <div style="color:#cbd5c9;font-size:12px;">Maze secured. Hunters regroup and speed up next round.</div>
@@ -197,17 +205,26 @@ try {
   }
 } catch(e){ /* cross-origin fallback: game still fills its own iframe */ }
 
-// ---------- Loading screen ----------
+// ---------- Loading screen -> tap-to-continue ----------
 (function(){
   const overlay = document.getElementById("loadingOverlay");
   const fill = document.getElementById("loadingBarFill");
   requestAnimationFrame(() => { fill.style.width = "100%"; });
-  setTimeout(() => { overlay.classList.add("hide"); }, 2100);
+  setTimeout(() => {
+    overlay.classList.add("hide");
+    setTimeout(() => {
+      const tap = document.getElementById("tapScreen");
+      if (tap) tap.style.display = "flex";
+    }, 550);
+  }, 2100);
 })();
 
 // ---------- Grid / maze setup ----------
 const COLS = 15, ROWS = 15, CELL = 24; // logical drawing units, scaled to fit screen
 const canvas = document.getElementById("cv"), ctx = canvas.getContext("2d");
+const bgCanvas = document.createElement("canvas");
+bgCanvas.width = COLS*CELL; bgCanvas.height = ROWS*CELL;
+const bgCtx = bgCanvas.getContext("2d");
 const scEl = document.getElementById("sc"), lvEl = document.getElementById("lv"), stgEl = document.getElementById("stg"), tixEl = document.getElementById("tix");
 const clearScreen = document.getElementById("clearScreen"), failScreen = document.getElementById("failScreen"),
       victoryScreen = document.getElementById("victoryScreen"), caughtScreen = document.getElementById("caughtScreen"),
@@ -367,6 +384,7 @@ let speeds = levelSpeeds(level);
 function startLevel(lvl){
   level = lvl;
   buildMaze();
+  renderMazeBackground();
   dotsRemaining = countDots();
   ghostCount = Math.min(4, 1 + Math.ceil(lvl/2));
   ghosts = makeGhosts(ghostCount);
@@ -534,32 +552,106 @@ function updateGhost(g, dt){
   });
 }
 
-// ---------- Drawing ----------
-function drawMaze(){
-  const bgGrad = ctx.createRadialGradient(COLS*CELL/2, ROWS*CELL/2, 20, COLS*CELL/2, ROWS*CELL/2, COLS*CELL*0.75);
-  bgGrad.addColorStop(0, "#16261a");
-  bgGrad.addColorStop(1, "#060d08");
-  ctx.fillStyle = bgGrad; ctx.fillRect(0, 0, COLS*CELL, ROWS*CELL);
+// ---------- Themed maze backgrounds ----------
+// Each level gets a distinct material (not just a re-tinted version of the same
+// blocky wall) rendered once into an offscreen canvas -- floor grain, wall
+// bevels/shadows and per-theme decoration (moss, wood grain, coral, lava
+// cracks, ice shine, sand ripples, gold filigree) are baked in a single time
+// per level instead of redrawn every frame, which keeps it both nicer-looking
+// and cheap to render at 60fps.
+const THEMES = [
+  { label:"mossy temple",   wall:["#5b6b4a","#26301f"], floor:["#182a1c","#070d08"], accent:"#9fce6a", decor:"moss"  },
+  { label:"bamboo grove",   wall:["#8a6a3c","#402d16"], floor:["#28200f","#100b05"], accent:"#d9b25f", decor:"wood"  },
+  { label:"coral reef",     wall:["#4d7691","#1c2e3d"], floor:["#0c2230","#03090d"], accent:"#7fe0d1", decor:"coral" },
+  { label:"volcanic rock",  wall:["#6b3324","#2a120c"], floor:["#1c0c09","#090302"], accent:"#ff8a4c", decor:"lava"  },
+  { label:"ice cavern",     wall:["#6a97b3","#233f52"], floor:["#0e1e28","#040b10"], accent:"#e6f6ff", decor:"ice"   },
+  { label:"desert dune",    wall:["#b08a44","#4f3a1a"], floor:["#2a2010","#0f0a04"], accent:"#f0d089", decor:"sand"  },
+  { label:"golden temple",  wall:["#9c7a1e","#3a2c09"], floor:["#241b06","#0c0902"], accent:"#ffe27a", decor:"gold"  }
+];
 
-  const wallTop = ["#4a3322","#5a3d28","#3d4a2e","#4a3d22","#2e4a3a","#4a2e3d","#2e3d4a"][(level-1) % 7];
-  const wallBot = ["#2b1c12","#331f14","#232b1a","#2b2412","#1a2b22","#2b1a24","#1a232b"][(level-1) % 7];
+function currentTheme(){ return THEMES[(level-1) % THEMES.length]; }
+
+function decorateWallCell(c, x, y, theme, seed){
+  const rnd = (n) => { const v = Math.sin(seed*127.1 + n*311.7) * 43758.5453; return v - Math.floor(v); };
+  c.save();
+  c.beginPath(); c.rect(x+1, y+1, CELL-2, CELL-2); c.clip();
+  if (theme.decor === "moss"){
+    if (rnd(1) > 0.45){
+      c.fillStyle = "rgba(140,190,90,0.35)";
+      c.beginPath(); c.arc(x+CELL*rnd(2), y+CELL*rnd(3), 4+rnd(4)*3, 0, Math.PI*2); c.fill();
+    }
+  } else if (theme.decor === "wood"){
+    c.strokeStyle = "rgba(0,0,0,0.28)"; c.lineWidth = 1;
+    for (let i=0;i<3;i++){ const gy = y+5+i*7; c.beginPath(); c.moveTo(x+1,gy); c.lineTo(x+CELL-1,gy+(rnd(i+5)-0.5)*2); c.stroke(); }
+  } else if (theme.decor === "coral"){
+    c.fillStyle = "rgba(255,255,255,0.14)";
+    for (let i=0;i<3;i++){ c.beginPath(); c.arc(x+CELL*rnd(i+2), y+CELL*rnd(i+6), 2.2, 0, Math.PI*2); c.fill(); }
+  } else if (theme.decor === "lava"){
+    c.strokeStyle = "rgba(255,138,76,0.85)"; c.lineWidth = 1.4;
+    c.shadowColor = "rgba(255,120,50,0.9)"; c.shadowBlur = 4;
+    c.beginPath(); c.moveTo(x+3, y+3+rnd(1)*6); c.lineTo(x+CELL*0.5, y+CELL*0.5+(rnd(2)-0.5)*8); c.lineTo(x+CELL-3, y+CELL-4-rnd(3)*6); c.stroke();
+  } else if (theme.decor === "ice"){
+    c.strokeStyle = "rgba(255,255,255,0.35)"; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(x+2, y+CELL-2); c.lineTo(x+CELL-2, y+2); c.stroke();
+    c.fillStyle = "rgba(255,255,255,0.5)";
+    c.beginPath(); c.arc(x+CELL*rnd(4), y+CELL*rnd(5), 1.1, 0, Math.PI*2); c.fill();
+  } else if (theme.decor === "sand"){
+    c.strokeStyle = "rgba(0,0,0,0.18)"; c.lineWidth = 1;
+    for (let i=0;i<2;i++){ const gy=y+8+i*9; c.beginPath(); c.moveTo(x+1,gy); c.quadraticCurveTo(x+CELL/2, gy-3, x+CELL-1, gy); c.stroke(); }
+  } else if (theme.decor === "gold"){
+    c.strokeStyle = "rgba(255,226,122,0.55)"; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(x+3,y+CELL-3); c.lineTo(x+CELL-3,y+3); c.stroke();
+    c.fillStyle = "rgba(255,226,122,0.45)";
+    c.beginPath(); c.arc(x+CELL/2, y+CELL/2, 1.6, 0, Math.PI*2); c.fill();
+  }
+  c.restore();
+}
+
+function drawThemedWall(c, x, y, theme, seed){
+  c.save();
+  c.shadowColor = "rgba(0,0,0,0.55)"; c.shadowBlur = 4; c.shadowOffsetY = 3;
+  const g = c.createLinearGradient(x, y, x, y+CELL);
+  g.addColorStop(0, theme.wall[0]); g.addColorStop(1, theme.wall[1]);
+  c.fillStyle = g;
+  c.fillRect(x+1, y+1, CELL-2, CELL-2);
+  c.restore();
+  decorateWallCell(c, x, y, theme, seed);
+  // bevel highlight (light source top-left) + shadow (bottom-right) for a carved 3D look
+  c.strokeStyle = "rgba(255,255,255,0.16)"; c.lineWidth = 1.1;
+  c.beginPath(); c.moveTo(x+1, y+CELL-2); c.lineTo(x+1, y+1); c.lineTo(x+CELL-2, y+1); c.stroke();
+  c.strokeStyle = "rgba(0,0,0,0.55)"; c.lineWidth = 1.1;
+  c.beginPath(); c.moveTo(x+CELL-1, y+1); c.lineTo(x+CELL-1, y+CELL-1); c.lineTo(x+1, y+CELL-1); c.stroke();
+}
+
+function renderMazeBackground(){
+  const theme = currentTheme();
+  const W = COLS*CELL, H = ROWS*CELL;
+  bgCtx.clearRect(0, 0, W, H);
+  const floorGrad = bgCtx.createRadialGradient(W/2, H/2, 20, W/2, H/2, W*0.75);
+  floorGrad.addColorStop(0, theme.floor[0]);
+  floorGrad.addColorStop(1, theme.floor[1]);
+  bgCtx.fillStyle = floorGrad; bgCtx.fillRect(0, 0, W, H);
+  // subtle floor grain for texture instead of a flat fill
+  for (let i = 0; i < 260; i++){
+    const gx = Math.random()*W, gy = Math.random()*H;
+    bgCtx.fillStyle = "rgba(255,255,255," + (Math.random()*0.035).toFixed(3) + ")";
+    bgCtx.fillRect(gx, gy, 1, 1);
+  }
   for (let r = 0; r < ROWS; r++){
-    for (let c = 0; c < COLS; c++){
-      if (grid[r][c] === "#"){
-        const x = c*CELL, y = r*CELL;
-        const wg = ctx.createLinearGradient(x, y, x, y+CELL);
-        wg.addColorStop(0, wallTop); wg.addColorStop(1, wallBot);
-        ctx.fillStyle = wg;
-        ctx.fillRect(x+1, y+1, CELL-2, CELL-2);
-        ctx.strokeStyle = "rgba(255,255,255,0.08)"; ctx.lineWidth = 1;
-        ctx.strokeRect(x+1.5, y+1.5, CELL-3, CELL-3);
-        ctx.strokeStyle = "rgba(0,0,0,0.45)"; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(x+1, y+CELL-1); ctx.lineTo(x+CELL-1, y+CELL-1); ctx.stroke();
+    for (let c2 = 0; c2 < COLS; c2++){
+      if (grid[r][c2] === "#"){
+        drawThemedWall(bgCtx, c2*CELL, r*CELL, theme, r*COLS + c2 + level*97);
       }
     }
   }
-  ctx.strokeStyle = "#6b4226"; ctx.lineWidth = 3;
-  ctx.strokeRect(1.5, 1.5, COLS*CELL-3, ROWS*CELL-3);
+  bgCtx.strokeStyle = theme.accent; bgCtx.lineWidth = 2.4; bgCtx.globalAlpha = 0.8;
+  bgCtx.strokeRect(1.5, 1.5, W-3, H-3);
+  bgCtx.globalAlpha = 1;
+}
+
+// ---------- Drawing ----------
+function drawMaze(){
+  ctx.drawImage(bgCanvas, 0, 0);
 
   for (let r = 0; r < ROWS; r++){
     for (let c = 0; c < COLS; c++){
@@ -748,23 +840,18 @@ function loop(timestamp){
   requestAnimationFrame(loop);
 }
 
-// ---------- Launch button ----------
-const launchBtn = document.createElement("button");
-launchBtn.innerText = "🥥 LAUNCH COCONUT HUNTER";
-Object.assign(launchBtn.style, {
-  position:"absolute", top:"40%", left:"6%", width:"88%", padding:"15px",
-  fontSize:"15px", fontWeight:"bold", background:"linear-gradient(180deg,#7dd68a,#3f9d5a)", color:"#08210f",
-  border:"2px solid #2f7a45", borderRadius:"10px", zIndex:"999", fontFamily:"inherit", cursor:"pointer",
-  boxShadow:"0 6px 0 rgba(0,0,0,0.35)"
-});
-arenaWrapper.appendChild(launchBtn);
-launchBtn.onclick = () => {
-  launchBtn.remove(); setupAudio(); sound("level");
+// ---------- Begin flow (tap-to-continue instead of a button bar) ----------
+const tapScreen = document.getElementById("tapScreen");
+function beginGame(){
+  tapScreen.style.display = "none";
+  setupAudio(); sound("level");
   gameRunning = true; startLevel(1); lastTime = 0;
   requestAnimationFrame(loop);
-};
+}
+tapScreen.addEventListener("pointerdown", beginGame, { once: true });
 
 buildMaze();
+renderMazeBackground();
 resizeCanvas();
 drawMaze();
 setTimeout(resizeCanvas, 60); // second pass once layout has settled (mobile browser chrome)
