@@ -91,7 +91,11 @@ game_html = """
     .loading-bar-fill { height:100%; width:0%; border-radius:6px;
         background: linear-gradient(90deg, #ffce6b, #7be39a); transition: width 1.9s cubic-bezier(.2,.7,.3,1); }
 
-    .tap-screen { cursor:pointer; }
+    .loading-tap-prompt { display:none; flex-direction:column; align-items:center; margin-top:26px; cursor:pointer; }
+    .loading-tap-title { color:#7be39a; font-size:clamp(18px,4.4vw,28px); font-weight:bold; letter-spacing:2px;
+        text-shadow:0 2px 8px rgba(0,0,0,0.6); animation: pulseTap 1.3s ease-in-out infinite; }
+    .loading-tap-sub { color:#a9c4d4; font-size:clamp(10px,2.2vw,12px); margin-top:6px; letter-spacing:0.5px; }
+    #loadingOverlay.ready { cursor:pointer; }
     @keyframes pulseTap { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.06); opacity:0.8; } }
 
     #hud {
@@ -131,6 +135,10 @@ game_html = """
         <div class="loading-title">COCONUT HUNTER</div>
         <div class="loading-sub">Charting the maze islands...</div>
         <div class="loading-bar-track"><div id="loadingBarFill" class="loading-bar-fill"></div></div>
+        <div id="loadingTapPrompt" class="loading-tap-prompt">
+            <div class="loading-tap-title">TAP TO BEGIN</div>
+            <div class="loading-tap-sub">Swipe, drag, or use arrow keys once inside</div>
+        </div>
     </div>
 
     <div class="cloud c1"></div>
@@ -152,11 +160,6 @@ game_html = """
 
     <div id="arenaWrapper">
         <canvas id="cv"></canvas>
-        <div id="tapScreen" class="msg-overlay tap-screen">
-            <div class="loading-coconut" style="font-size:clamp(40px,9vw,64px);">🥥</div>
-            <div class="msg-title overlay-clear" style="animation: pulseTap 1.3s ease-in-out infinite;">TAP TO BEGIN</div>
-            <div style="color:#cbd5c9;font-size:12px;margin-top:4px;">Swipe, drag, or use arrow keys once inside</div>
-        </div>
         <div id="clearScreen" class="msg-overlay">
             <div class="msg-title overlay-clear">LEVEL CLEARED! 🌴</div>
             <div style="color:#cbd5c9;font-size:12px;">Maze secured. Hunters regroup and speed up next round.</div>
@@ -205,18 +208,25 @@ try {
   }
 } catch(e){ /* cross-origin fallback: game still fills its own iframe */ }
 
-// ---------- Loading screen -> tap-to-continue ----------
+// ---------- Loading screen: bar fills, "tap to begin" appears INSIDE it, then the
+// overlay itself fades out into the game once tapped ----------
 (function(){
   const overlay = document.getElementById("loadingOverlay");
   const fill = document.getElementById("loadingBarFill");
+  const tapPrompt = document.getElementById("loadingTapPrompt");
+  let ready = false;
   requestAnimationFrame(() => { fill.style.width = "100%"; });
   setTimeout(() => {
-    overlay.classList.add("hide");
-    setTimeout(() => {
-      const tap = document.getElementById("tapScreen");
-      if (tap) tap.style.display = "flex";
-    }, 550);
+    tapPrompt.style.display = "flex";
+    overlay.classList.add("ready");
+    ready = true;
   }, 2100);
+  overlay.addEventListener("pointerdown", function onTap(){
+    if (!ready) return;
+    overlay.removeEventListener("pointerdown", onTap);
+    overlay.classList.add("hide");
+    setTimeout(beginGame, 650);
+  });
 })();
 
 // ---------- Grid / maze setup ----------
@@ -337,6 +347,8 @@ function resizeCanvas(){
   canvas.height = Math.floor(size * dpr);
   drawScale = (size * dpr) / (COLS * CELL);
   ctx.setTransform(drawScale, 0, 0, drawScale, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
 }
 window.addEventListener("resize", resizeCanvas);
 if (window.visualViewport) window.visualViewport.addEventListener("resize", resizeCanvas);
@@ -686,6 +698,8 @@ function drawCoconutDot(cx, cy, r, glow){
   ctx.beginPath(); ctx.arc(cx + r*0.25, cy + r*0.15, s*0.4, 0, Math.PI*2); ctx.fill();
   ctx.fillStyle = "rgba(255,240,210,0.5)";
   ctx.beginPath(); ctx.arc(cx - r*0.4, cy - r*0.4, r*0.22, 0, Math.PI*2); ctx.fill();
+  ctx.strokeStyle = "rgba(255,255,255,0.22)"; ctx.lineWidth = Math.max(0.6, r*0.14);
+  ctx.beginPath(); ctx.arc(cx, cy, r*0.9, Math.PI*1.1, Math.PI*1.6); ctx.stroke();
 }
 
 function drawShadowUnder(x, y, r){
@@ -706,22 +720,51 @@ function drawPlayer(){
 
   drawShadowUnder(pos.x, pos.y, 10);
 
+  // husk body with deeper, more natural coconut-brown shading
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = 5;
-  ctx.shadowOffsetY = 2;
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2.5;
   ctx.beginPath();
   const grad = ctx.createRadialGradient(pos.x-4, pos.y-4.5, 1.5, pos.x, pos.y, 10.5);
-  grad.addColorStop(0, "#e8b183");
-  grad.addColorStop(0.35, "#c48552");
-  grad.addColorStop(0.75, "#8a5a34");
-  grad.addColorStop(1, "#4a2f1c");
+  grad.addColorStop(0, "#a9754a");
+  grad.addColorStop(0.35, "#7c4f2c");
+  grad.addColorStop(0.72, "#4c2f1a");
+  grad.addColorStop(1, "#2a1a0d");
   ctx.arc(pos.x, pos.y, 10.5, rot+player.mouth, rot+Math.PI*2-player.mouth);
-  ctx.lineTo(pos.x, pos.y); ctx.fillStyle = grad; ctx.fill(); ctx.closePath();
+  ctx.lineTo(pos.x, pos.y); ctx.fillStyle = grad; ctx.fill();
   ctx.restore();
+
+  // fibrous husk striations, clipped to the body so they follow the sphere
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, 10.3, rot+player.mouth, rot+Math.PI*2-player.mouth);
+  ctx.lineTo(pos.x, pos.y);
+  ctx.clip();
+  ctx.strokeStyle = "rgba(0,0,0,0.28)"; ctx.lineWidth = 0.6;
+  for (let i=0;i<7;i++){
+    const a = (i/7) * Math.PI*2;
+    ctx.beginPath();
+    ctx.arc(pos.x, pos.y, 4+(i%3)*2, a, a+0.5);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // pale coconut flesh visible in the "bite" opening
+  ctx.beginPath();
+  ctx.moveTo(pos.x, pos.y);
+  ctx.arc(pos.x, pos.y, 9.6, rot-player.mouth, rot+player.mouth);
+  ctx.closePath();
+  const fleshGrad = ctx.createRadialGradient(pos.x, pos.y, 1, pos.x, pos.y, 9.6);
+  fleshGrad.addColorStop(0, "#fdf6e8");
+  fleshGrad.addColorStop(1, "#e8d7ae");
+  ctx.fillStyle = fleshGrad;
+  ctx.fill();
+
+  // soft moving specular highlight for a glossy, lit-from-above look
   ctx.beginPath();
   ctx.arc(pos.x-3, pos.y-4, 2.6, 0, Math.PI*2);
-  ctx.fillStyle = "rgba(255,235,210,0.55)";
+  ctx.fillStyle = "rgba(255,240,220,0.55)";
   ctx.fill();
 }
 
@@ -766,13 +809,44 @@ function drawGhost(g){
   ctx.closePath();
   ctx.fillStyle = grad; ctx.fill();
   ctx.restore();
+
+  // rim light echoing the current maze's theme accent color, for cohesive lighting
+  ctx.save();
+  ctx.globalCompositeOperation = "lighter";
+  ctx.strokeStyle = currentTheme().accent;
+  ctx.globalAlpha = 0.28;
+  ctx.lineWidth = 1.4;
+  ctx.beginPath(); ctx.arc(pos.x, pos.y-1, r-1, Math.PI*1.15, Math.PI*1.85); ctx.stroke();
+  ctx.restore();
+
   ctx.fillStyle = "#ffffff";
   ctx.beginPath(); ctx.arc(pos.x-3.5, pos.y-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
   ctx.beginPath(); ctx.arc(pos.x+3.5, pos.y-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+  ctx.save();
+  ctx.shadowColor = "rgba(120,200,255,0.9)"; ctx.shadowBlur = 3;
   ctx.fillStyle = "#0f172a";
   const ex = g.dir.x*1.2, ey = g.dir.y*1.2;
   ctx.beginPath(); ctx.arc(pos.x-3.5+ex, pos.y-1+ey, 1.2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
   ctx.beginPath(); ctx.arc(pos.x+3.5+ex, pos.y-1+ey, 1.2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+  ctx.restore();
+}
+
+// cinematic vignette + soft top-light wash, drawn over the whole scene each
+// frame so it reads less like a flat sprite sheet and more like a lit diorama
+function drawVignette(){
+  const W = COLS*CELL, H = ROWS*CELL;
+  const light = ctx.createRadialGradient(W*0.5, H*0.18, 4, W*0.5, H*0.5, H*0.62);
+  light.addColorStop(0, "rgba(255,255,255,0.06)");
+  light.addColorStop(0.5, "rgba(255,255,255,0)");
+  light.addColorStop(1, "rgba(0,0,0,0)");
+  ctx.fillStyle = light;
+  ctx.fillRect(0, 0, W, H);
+  const vg = ctx.createRadialGradient(W/2, H*0.46, H*0.18, W/2, H/2, H*0.74);
+  vg.addColorStop(0, "rgba(0,0,0,0)");
+  vg.addColorStop(0.72, "rgba(0,0,0,0.06)");
+  vg.addColorStop(1, "rgba(0,0,0,0.4)");
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
 }
 
 // ---------- Main loop ----------
@@ -812,6 +886,7 @@ function loop(timestamp){
 
   drawPlayer();
   ghosts.forEach(drawGhost);
+  drawVignette();
 
   const playerPos = entityPixelPos(player);
   for (const g of ghosts){
@@ -840,20 +915,18 @@ function loop(timestamp){
   requestAnimationFrame(loop);
 }
 
-// ---------- Begin flow (tap-to-continue instead of a button bar) ----------
-const tapScreen = document.getElementById("tapScreen");
+// ---------- Begin flow (triggered from the loading overlay's own tap prompt) ----------
 function beginGame(){
-  tapScreen.style.display = "none";
   setupAudio(); sound("level");
   gameRunning = true; startLevel(1); lastTime = 0;
   requestAnimationFrame(loop);
 }
-tapScreen.addEventListener("pointerdown", beginGame, { once: true });
 
 buildMaze();
 renderMazeBackground();
 resizeCanvas();
 drawMaze();
+drawVignette();
 setTimeout(resizeCanvas, 60); // second pass once layout has settled (mobile browser chrome)
 
 })();
