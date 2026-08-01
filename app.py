@@ -114,6 +114,11 @@ game_html = """
         box-shadow: 0 20px 50px rgba(0,0,0,0.7), inset 0 0 40px rgba(0,0,0,0.5);
         touch-action:none; cursor:crosshair;
     }
+    #cv { position:relative; z-index:1; }
+    #fx {
+        position:absolute; top:0; left:0; z-index:2;
+        border-radius:14px; pointer-events:none; mix-blend-mode:normal;
+    }
     .msg-overlay { position:absolute; inset:0; background:rgba(10,14,10,0.94); border-radius:14px;
         display:none; flex-direction:column; align-items:center; justify-content:center; z-index:100; color:#fff; text-align:center; padding:15px; }
     .msg-title { font-size:clamp(18px,4vw,26px); font-weight:bold; margin-bottom:8px; letter-spacing:1px; }
@@ -152,6 +157,7 @@ game_html = """
 
     <div id="arenaWrapper">
         <canvas id="cv"></canvas>
+        <canvas id="fx"></canvas>
         <div id="tapScreen" class="msg-overlay tap-screen">
             <div class="loading-coconut" style="font-size:clamp(40px,9vw,64px);">🥥</div>
             <div class="msg-title overlay-clear" style="animation: pulseTap 1.3s ease-in-out infinite;">TAP TO BEGIN</div>
@@ -222,9 +228,26 @@ try {
 // ---------- Grid / maze setup ----------
 const COLS = 15, ROWS = 15, CELL = 24; // logical drawing units, scaled to fit screen
 const canvas = document.getElementById("cv"), ctx = canvas.getContext("2d");
+const fxCanvas = document.getElementById("fx"), fxCtx = fxCanvas.getContext("2d");
 const bgCanvas = document.createElement("canvas");
 bgCanvas.width = COLS*CELL; bgCanvas.height = ROWS*CELL;
 const bgCtx = bgCanvas.getContext("2d");
+
+// Pre-baked film-grain tile: a small noisy texture stamped across the frame
+// each tick instead of computing per-pixel noise live (a cheap way to fake a
+// gritty "shot on a lens" texture over the flat vector art).
+const grainTile = document.createElement("canvas");
+grainTile.width = 96; grainTile.height = 96;
+(function bakeGrain(){
+  const gctx = grainTile.getContext("2d");
+  const imgData = gctx.createImageData(96, 96);
+  for (let i = 0; i < imgData.data.length; i += 4){
+    const v = Math.random() * 255;
+    imgData.data[i] = v; imgData.data[i+1] = v; imgData.data[i+2] = v;
+    imgData.data[i+3] = Math.random() * 40;
+  }
+  gctx.putImageData(imgData, 0, 0);
+})();
 const scEl = document.getElementById("sc"), lvEl = document.getElementById("lv"), stgEl = document.getElementById("stg"), tixEl = document.getElementById("tix");
 const clearScreen = document.getElementById("clearScreen"), failScreen = document.getElementById("failScreen"),
       victoryScreen = document.getElementById("victoryScreen"), caughtScreen = document.getElementById("caughtScreen"),
@@ -337,6 +360,12 @@ function resizeCanvas(){
   canvas.height = Math.floor(size * dpr);
   drawScale = (size * dpr) / (COLS * CELL);
   ctx.setTransform(drawScale, 0, 0, drawScale, 0, 0);
+
+  fxCanvas.style.width = size + "px";
+  fxCanvas.style.height = size + "px";
+  fxCanvas.width = canvas.width;
+  fxCanvas.height = canvas.height;
+  fxCtx.setTransform(drawScale, 0, 0, drawScale, 0, 0);
 }
 window.addEventListener("resize", resizeCanvas);
 if (window.visualViewport) window.visualViewport.addEventListener("resize", resizeCanvas);
@@ -623,6 +652,46 @@ function drawThemedWall(c, x, y, theme, seed){
   c.beginPath(); c.moveTo(x+CELL-1, y+1); c.lineTo(x+CELL-1, y+CELL-1); c.lineTo(x+1, y+CELL-1); c.stroke();
 }
 
+// Soft contact shadow where floor tiles sit against a wall face -- this is
+// the single biggest cheap win for making flat 2D tiles read as occupying
+// real 3D space, since it's exactly what ambient occlusion does in a proper
+//3D renderer (darkening creases where two surfaces meet).
+function addFloorAmbientOcclusion(){
+  bgCtx.save();
+  bgCtx.globalCompositeOperation = "multiply";
+  const depth = CELL * 0.5;
+  for (let r = 0; r < ROWS; r++){
+    for (let c2 = 0; c2 < COLS; c2++){
+      if (grid[r][c2] === "#") continue;
+      const x = c2*CELL, y = r*CELL;
+      const sides = [[r-1,c2,"top"],[r+1,c2,"bottom"],[r,c2-1,"left"],[r,c2+1,"right"]];
+      sides.forEach(([nr,nc,side]) => {
+        if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) return;
+        if (grid[nr][nc] !== "#") return;
+        let grad;
+        if (side === "top"){
+          grad = bgCtx.createLinearGradient(x, y, x, y+depth);
+          grad.addColorStop(0, "rgba(0,0,0,0.5)"); grad.addColorStop(1, "rgba(0,0,0,0)");
+          bgCtx.fillStyle = grad; bgCtx.fillRect(x, y, CELL, depth);
+        } else if (side === "bottom"){
+          grad = bgCtx.createLinearGradient(x, y+CELL, x, y+CELL-depth);
+          grad.addColorStop(0, "rgba(0,0,0,0.5)"); grad.addColorStop(1, "rgba(0,0,0,0)");
+          bgCtx.fillStyle = grad; bgCtx.fillRect(x, y+CELL-depth, CELL, depth);
+        } else if (side === "left"){
+          grad = bgCtx.createLinearGradient(x, y, x+depth, y);
+          grad.addColorStop(0, "rgba(0,0,0,0.5)"); grad.addColorStop(1, "rgba(0,0,0,0)");
+          bgCtx.fillStyle = grad; bgCtx.fillRect(x, y, depth, CELL);
+        } else if (side === "right"){
+          grad = bgCtx.createLinearGradient(x+CELL, y, x+CELL-depth, y);
+          grad.addColorStop(0, "rgba(0,0,0,0.5)"); grad.addColorStop(1, "rgba(0,0,0,0)");
+          bgCtx.fillStyle = grad; bgCtx.fillRect(x+CELL-depth, y, depth, CELL);
+        }
+      });
+    }
+  }
+  bgCtx.restore();
+}
+
 function renderMazeBackground(){
   const theme = currentTheme();
   const W = COLS*CELL, H = ROWS*CELL;
@@ -644,6 +713,7 @@ function renderMazeBackground(){
       }
     }
   }
+  addFloorAmbientOcclusion();
   bgCtx.strokeStyle = theme.accent; bgCtx.lineWidth = 2.4; bgCtx.globalAlpha = 0.8;
   bgCtx.strokeRect(1.5, 1.5, W-3, H-3);
   bgCtx.globalAlpha = 1;
@@ -707,21 +777,39 @@ function drawPlayer(){
   drawShadowUnder(pos.x, pos.y, 10);
 
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.5)";
-  ctx.shadowBlur = 5;
-  ctx.shadowOffsetY = 2;
+  ctx.shadowColor = "rgba(0,0,0,0.55)";
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2.5;
   ctx.beginPath();
   const grad = ctx.createRadialGradient(pos.x-4, pos.y-4.5, 1.5, pos.x, pos.y, 10.5);
-  grad.addColorStop(0, "#e8b183");
-  grad.addColorStop(0.35, "#c48552");
-  grad.addColorStop(0.75, "#8a5a34");
-  grad.addColorStop(1, "#4a2f1c");
+  grad.addColorStop(0, "#f4cca0");
+  grad.addColorStop(0.3, "#dba06a");
+  grad.addColorStop(0.6, "#a76a3d");
+  grad.addColorStop(0.85, "#6e4526");
+  grad.addColorStop(1, "#3a2415");
   ctx.arc(pos.x, pos.y, 10.5, rot+player.mouth, rot+Math.PI*2-player.mouth);
   ctx.lineTo(pos.x, pos.y); ctx.fillStyle = grad; ctx.fill(); ctx.closePath();
   ctx.restore();
+
+  // rim light on the far edge, opposite the key light -- separates the
+  // sprite from a same-toned background the way a practical light would
+  ctx.save();
+  ctx.globalCompositeOperation = "screen";
+  ctx.beginPath();
+  ctx.arc(pos.x, pos.y, 10.3, rot+player.mouth, rot+Math.PI*2-player.mouth);
+  ctx.lineTo(pos.x, pos.y); ctx.closePath();
+  ctx.clip();
+  ctx.beginPath();
+  ctx.arc(pos.x+4.5, pos.y+4.5, 9, 0, Math.PI*2);
+  const rim = ctx.createRadialGradient(pos.x+4.5, pos.y+4.5, 4, pos.x+4.5, pos.y+4.5, 9);
+  rim.addColorStop(0, "rgba(255,190,110,0)");
+  rim.addColorStop(1, "rgba(255,190,110,0.35)");
+  ctx.fillStyle = rim; ctx.fill();
+  ctx.restore();
+
   ctx.beginPath();
   ctx.arc(pos.x-3, pos.y-4, 2.6, 0, Math.PI*2);
-  ctx.fillStyle = "rgba(255,235,210,0.55)";
+  ctx.fillStyle = "rgba(255,245,225,0.7)";
   ctx.fill();
 }
 
@@ -753,18 +841,34 @@ function drawGhost(g){
     return;
   }
   ctx.save();
-  ctx.shadowColor = "rgba(0,0,0,0.45)"; ctx.shadowBlur = 5; ctx.shadowOffsetY = 2;
-  const grad = ctx.createRadialGradient(pos.x-3, pos.y-3, 1, pos.x, pos.y, r);
-  grad.addColorStop(0, "#ffffff"); grad.addColorStop(0.3, color); grad.addColorStop(1, "#020617");
-  ctx.arc(pos.x, pos.y, r, Math.PI, 0);
+  ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 6; ctx.shadowOffsetY = 2.5;
+  const grad = ctx.createRadialGradient(pos.x-3.5, pos.y-3.5, 0.8, pos.x, pos.y, r);
+  grad.addColorStop(0, "#ffffff"); grad.addColorStop(0.22, color); grad.addColorStop(0.65, color); grad.addColorStop(1, "#020617");
+  const bodyPath = new Path2D();
+  bodyPath.arc(pos.x, pos.y, r, Math.PI, 0);
   const wob = Math.sin(performance.now()*0.01 + pos.x*0.2) * 2;
-  ctx.lineTo(pos.x+r, pos.y+r);
-  ctx.lineTo(pos.x+r*0.5, pos.y+r-wob);
-  ctx.lineTo(pos.x, pos.y+r);
-  ctx.lineTo(pos.x-r*0.5, pos.y+r-wob);
-  ctx.lineTo(pos.x-r, pos.y+r);
-  ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
+  bodyPath.lineTo(pos.x+r, pos.y+r);
+  bodyPath.lineTo(pos.x+r*0.5, pos.y+r-wob);
+  bodyPath.lineTo(pos.x, pos.y+r);
+  bodyPath.lineTo(pos.x-r*0.5, pos.y+r-wob);
+  bodyPath.lineTo(pos.x-r, pos.y+r);
+  bodyPath.closePath();
+  ctx.fillStyle = grad; ctx.fill(bodyPath);
+  ctx.restore();
+
+  // rim light + subtle bottom occlusion for volume, clipped to the ghost's silhouette
+  ctx.save();
+  ctx.clip(bodyPath);
+  ctx.globalCompositeOperation = "screen";
+  const rim = ctx.createRadialGradient(pos.x+4, pos.y+3, 3, pos.x+4, pos.y+3, r*1.1);
+  rim.addColorStop(0, "rgba(255,255,255,0)");
+  rim.addColorStop(1, "rgba(255,255,255,0.28)");
+  ctx.fillStyle = rim; ctx.fillRect(pos.x-r, pos.y-r, r*2, r*2);
+  ctx.globalCompositeOperation = "multiply";
+  const under = ctx.createLinearGradient(pos.x, pos.y+r*0.3, pos.x, pos.y+r);
+  under.addColorStop(0, "rgba(0,0,0,0)");
+  under.addColorStop(1, "rgba(0,0,0,0.35)");
+  ctx.fillStyle = under; ctx.fillRect(pos.x-r, pos.y, r*2, r);
   ctx.restore();
   ctx.fillStyle = "#ffffff";
   ctx.beginPath(); ctx.arc(pos.x-3.5, pos.y-1, 2.6, 0, Math.PI*2); ctx.fill(); ctx.closePath();
@@ -773,6 +877,59 @@ function drawGhost(g){
   const ex = g.dir.x*1.2, ey = g.dir.y*1.2;
   ctx.beginPath(); ctx.arc(pos.x-3.5+ex, pos.y-1+ey, 1.2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
   ctx.beginPath(); ctx.arc(pos.x+3.5+ex, pos.y-1+ey, 1.2, 0, Math.PI*2); ctx.fill(); ctx.closePath();
+}
+
+// ---------- Post-process lighting pass ----------
+// Runs on the separate fx canvas stacked on top of the game canvas: a warm
+// point-light that follows the player like a torch/headlamp, a darkened
+// cinematic vignette toward the frame edges, and a fine film-grain overlay.
+// Composited with screen/multiply/overlay blend modes so it reads as real
+// lighting instead of a flat tint painted over the sprites.
+function drawFX(){
+  const W = COLS*CELL, H = ROWS*CELL;
+  fxCtx.clearRect(0, 0, W, H);
+
+  const p = entityPixelPos(player);
+  fxCtx.save();
+  fxCtx.globalCompositeOperation = "screen";
+  const lightGrad = fxCtx.createRadialGradient(p.x, p.y, 4, p.x, p.y, CELL * 4.4);
+  lightGrad.addColorStop(0, "rgba(255,214,140,0.55)");
+  lightGrad.addColorStop(0.4, "rgba(255,178,90,0.22)");
+  lightGrad.addColorStop(1, "rgba(255,178,90,0)");
+  fxCtx.fillStyle = lightGrad;
+  fxCtx.fillRect(0, 0, W, H);
+  fxCtx.restore();
+
+  ghosts.forEach(g => {
+    if (g.mode === "house") return;
+    const gp = entityPixelPos(g);
+    const tint = g.mode === "frightened" ? "80,140,255" : (g.mode === "eaten" ? "220,230,255" : g.color.match(/\\w\\w/g).map(h=>parseInt(h,16)).join(","));
+    fxCtx.save();
+    fxCtx.globalCompositeOperation = "screen";
+    const gg = fxCtx.createRadialGradient(gp.x, gp.y, 2, gp.x, gp.y, CELL * 1.6);
+    gg.addColorStop(0, "rgba(" + tint + ",0.30)");
+    gg.addColorStop(1, "rgba(" + tint + ",0)");
+    fxCtx.fillStyle = gg;
+    fxCtx.fillRect(0, 0, W, H);
+    fxCtx.restore();
+  });
+
+  fxCtx.save();
+  fxCtx.globalCompositeOperation = "multiply";
+  const vig = fxCtx.createRadialGradient(W/2, H/2, H*0.26, W/2, H/2, H*0.76);
+  vig.addColorStop(0, "rgba(255,255,255,1)");
+  vig.addColorStop(1, "rgba(35,26,22,0.6)");
+  fxCtx.fillStyle = vig;
+  fxCtx.fillRect(0, 0, W, H);
+  fxCtx.restore();
+
+  fxCtx.save();
+  fxCtx.globalCompositeOperation = "overlay";
+  fxCtx.globalAlpha = 0.4;
+  const pattern = fxCtx.createPattern(grainTile, "repeat");
+  fxCtx.fillStyle = pattern;
+  fxCtx.fillRect(0, 0, W, H);
+  fxCtx.restore();
 }
 
 // ---------- Main loop ----------
@@ -812,6 +969,7 @@ function loop(timestamp){
 
   drawPlayer();
   ghosts.forEach(drawGhost);
+  drawFX();
 
   const playerPos = entityPixelPos(player);
   for (const g of ghosts){
@@ -854,6 +1012,8 @@ buildMaze();
 renderMazeBackground();
 resizeCanvas();
 drawMaze();
+drawPlayer();
+drawFX();
 setTimeout(resizeCanvas, 60); // second pass once layout has settled (mobile browser chrome)
 
 })();
